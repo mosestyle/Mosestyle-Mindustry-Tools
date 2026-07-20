@@ -2,7 +2,7 @@ displayName: "Auto Route"
 name: "mindustry-auto-route"
 author: "Moses Mede"
 main: "autoroute.AutoRouteMod"
-description: "Tap waypoints to create smart conveyor routes. Includes a movable mobile toolbar, icon activation, ore avoidance, and drill-output avoidance."
-version: "0.2.2"
+description: "Tap waypoints to create smart conveyor routes with ore avoidance, drill safety, and automatic junctions when crossing existing conveyors."
+version: "0.3.0"
 minGameVersion: 159
 java: true

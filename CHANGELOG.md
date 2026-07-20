@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Matched AutoDrill's exact top-right HUD table structure, 30px icon size, and 155px right margin, with Auto Route placed on the row directly below it.
+- Added smart existing-conveyor crossing for Conveyor-family blocks.
+- Automatically replaces perpendicular crossing tiles with the selected conveyor's unlocked junction replacement.
+- Prevents routes from running parallel over existing conveyors, avoiding accidental replacement and merging.
+- Adds a pathfinding penalty to conveyor crossings so empty ground is preferred and junctions are used only when worthwhile.
+- Shows the number of automatic junctions in the route preview and build confirmation.
+
 ## 0.2.2
 
 - Adjusted the Auto Route activation button so it sits in a cleaner top-right column directly below AutoDrill-style mod icons.

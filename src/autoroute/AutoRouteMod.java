@@ -21,6 +21,7 @@ import mindustry.world.Block;
 import mindustry.world.Build;
 import mindustry.world.Tile;
 import mindustry.world.meta.BlockFlag;
+import mindustry.world.blocks.distribution.Conveyor;
 
 import java.util.Arrays;
 import java.util.PriorityQueue;
@@ -36,14 +37,17 @@ import java.util.PriorityQueue;
  */
 public class AutoRouteMod extends Mod{
     private static final int[] dirX = {1, 0, -1, 0};
-    private static final float hudButtonSize = 48f;
-    private static final float hudIconSize = 32f;
-    private static final float hudRightPad = 155f;
-    private static final float hudTopPad = 6f;
     private static final int[] dirY = {0, 1, 0, -1};
+
+    // AutoDrill uses a 30px image with a right HUD margin of 155. Auto Route
+    // mirrors those exact values and only adds a vertical offset for the row below.
+    private static final int hudIconSize = 30;
+    private static final float hudRightMargin = 155f;
+    private static final float hudSecondRowTopMargin = 47f;
 
     private static final float turnPenalty = 0.35f;
     private static final float allowedOrePenalty = 12f;
+    private static final float existingConveyorCrossingPenalty = 8f;
     private static final int maxExpandedStates = 300_000;
     private static final int maxSearchCells = 450_000;
 
@@ -59,6 +63,7 @@ public class AutoRouteMod extends Mod{
     private boolean active;
     private boolean avoidOre = true;
     private Block routeBlock;
+    private int smartCrossings;
 
     private ImageButton routeButton;
     private TextButton oreButton;
@@ -85,31 +90,22 @@ public class AutoRouteMod extends Mod{
     }
 
     private void buildHud(){
-        // Reserve one icon slot, then place Auto Route directly beneath it so it
-        // lines up with mods such as AutoDrill on the same top-right HUD column.
-        Vars.ui.hudGroup.fill(root -> {
-            root.top().right();
-
-            Table iconColumn = new Table();
-            iconColumn.top().right();
-            iconColumn.defaults().size(hudButtonSize);
-
-            iconColumn.add().size(hudButtonSize);
-            iconColumn.row();
-
+        // Use the same table structure and horizontal margins as AutoDrill.
+        // Only the top margin differs, placing Auto Route in the next row.
+        Vars.ui.hudGroup.fill(table -> {
             TextureRegionDrawable icon = new TextureRegionDrawable(
                 Core.atlas.find("mindustry-auto-route-icon")
             );
 
-            routeButton = iconColumn.button(icon, Styles.emptyTogglei, this::toggleRouting)
-                .size(hudButtonSize)
-                .get();
-
+            routeButton = table.button(icon, Styles.emptyTogglei, this::toggleRouting).get();
             routeButton.resizeImage(hudIconSize);
             routeButton.update(() -> routeButton.setChecked(active));
             routeButton.visible(() -> !Vars.state.isMenu());
 
-            root.add(iconColumn).padTop(hudTopPad).padRight(hudRightPad);
+            table.margin(5f);
+            table.marginRight(hudRightMargin);
+            table.marginTop(hudSecondRowTopMargin);
+            table.top().right();
         });
 
         buildMovableRoutePanel();
@@ -273,9 +269,10 @@ public class AutoRouteMod extends Mod{
         if(routeBlock == null) return "[accent]Auto Route[]";
         if(waypoints.isEmpty()) return "[accent]" + routeBlock.localizedName + "[]\nTap Point A";
 
+        String crossings = smartCrossings > 0 ? " • " + smartCrossings + " junction" + (smartCrossings == 1 ? "" : "s") : "";
         return "[accent]" + routeBlock.localizedName + "[]\n" +
             waypoints.size + " point" + (waypoints.size == 1 ? "" : "s") +
-            " • " + routePlans.size + " block" + (routePlans.size == 1 ? "" : "s");
+            " • " + routePlans.size + " block" + (routePlans.size == 1 ? "" : "s") + crossings;
     }
 
     private void toggleRouting(){
@@ -393,6 +390,7 @@ public class AutoRouteMod extends Mod{
         routeTiles.clear();
         routePlans.clear();
         routeKeys.clear();
+        smartCrossings = 0;
     }
 
     private boolean recalculateAllSegments(){
@@ -447,6 +445,27 @@ public class AutoRouteMod extends Mod{
 
             routePlans.add(new BuildPlan(current.x, current.y, rotation, routeBlock));
         }
+
+        applySmartCrossingReplacements();
+    }
+
+    /**
+     * Mindustry's Conveyor#getReplacement already contains the game's official
+     * perpendicular-crossing test. Running it after the whole route exists turns
+     * eligible crossing plans into the selected conveyor's junction replacement.
+     */
+    private void applySmartCrossingReplacements(){
+        smartCrossings = 0;
+        if(routeBlock == null || routePlans.isEmpty()) return;
+
+        for(BuildPlan plan : routePlans){
+            Block replacement = routeBlock.getReplacement(plan, routePlans);
+            if(replacement != null && replacement != routeBlock &&
+                replacement.unlockedNow() && !replacement.isHidden()){
+                plan.block = replacement;
+                smartCrossings++;
+            }
+        }
     }
 
     private void addRouteTile(Point2 point){
@@ -485,8 +504,11 @@ public class AutoRouteMod extends Mod{
             return;
         }
 
+        int crossingsBuilt = smartCrossings;
+        String crossingText = crossingsBuilt > 0 ? " Included " + crossingsBuilt + " automatic junction" +
+            (crossingsBuilt == 1 ? "." : "s.") : "";
         Vars.ui.showInfoToast("Queued " + queued + " " + routeBlock.localizedName +
-            (queued == 1 ? "." : " blocks."), 3f);
+            (queued == 1 ? "." : " blocks.") + crossingText, 4f);
         clearRoute();
     }
 
@@ -597,7 +619,16 @@ public class AutoRouteMod extends Mod{
                 break;
             }
 
+            Tile currentTile = Vars.world.tile(x, y);
             for(int nextDirection = 0; nextDirection < 4; nextDirection++){
+                // A junction crossing must continue straight through the occupied
+                // tile. Turning on top of an existing conveyor would still merge
+                // with or replace that line instead of creating a true crossing.
+                if(incomingDirection != 4 && isExistingFriendlyConveyor(currentTile) &&
+                    nextDirection != incomingDirection){
+                    continue;
+                }
+
                 int nextX = x + dirX[nextDirection];
                 int nextY = y + dirY[nextDirection];
 
@@ -614,6 +645,13 @@ public class AutoRouteMod extends Mod{
                 if(!avoidOre && nextTile != null && nextTile.drop() != null &&
                     !(nextX == goal.x && nextY == goal.y)){
                     step += allowedOrePenalty;
+                }
+
+                // Empty ground remains preferable. Existing conveyors are only
+                // crossed when their detour would be meaningfully longer.
+                if(nextTile != null && isExistingFriendlyConveyor(nextTile) &&
+                    !(nextX == goal.x && nextY == goal.y)){
+                    step += existingConveyorCrossingPenalty;
                 }
 
                 float newCost = bestCost[node.state] + step;
@@ -673,9 +711,36 @@ public class AutoRouteMod extends Mod{
         // player can intentionally connect a route to a drill.
         if(!isStart && !isGoal && isBesideDrill(x, y)) return false;
 
+        // Never run along and overwrite an existing conveyor. A perpendicular
+        // crossing is allowed only when the selected conveyor has a usable
+        // junction replacement; that tile is converted after the route is built.
+        if(!isStart && !isGoal && isExistingFriendlyConveyor(tile)){
+            if(!canCrossExistingConveyor(tile, rotation)) return false;
+        }
+
         if(isGoal && tile.block() == routeBlock && tile.team() == Vars.player.team()) return true;
 
         return Build.validPlace(routeBlock, Vars.player.team(), x, y, rotation);
+    }
+
+    private boolean isExistingFriendlyConveyor(Tile tile){
+        return tile != null && tile.build != null && tile.team() == Vars.player.team() &&
+            tile.block() instanceof Conveyor;
+    }
+
+    private boolean canCrossExistingConveyor(Tile tile, int routeRotation){
+        if(!(routeBlock instanceof Conveyor conveyor) || tile.build == null) return false;
+
+        Block junction = conveyor.junctionReplacement;
+        if(junction == null || !junction.unlockedNow() || junction.isHidden()) return false;
+
+        // Parallel placement would replace or merge into the old belt. Only an
+        // actual 90-degree crossing is converted into a junction.
+        boolean perpendicular = Math.floorMod(tile.build.rotation - routeRotation, 2) == 1;
+        if(!perpendicular) return false;
+
+        return Build.validPlace(junction, Vars.player.team(), tile.x, tile.y, 0) ||
+            tile.block() == junction;
     }
 
     private boolean isBesideDrill(int x, int y){
