@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2
+
+- Fixed automatic bridges replacing simple one-tile perpendicular conveyor crossings.
+- Restored Junction-first behavior for ordinary conveyor and duct crossings.
+- Existing conveyors are now evaluated as possible Junction crossings before the unrelated-line feed protection is applied.
+- Bridges remain available for hard obstacles and multi-crossing spans where a Junction cannot solve the route cleanly.
+
 ## 0.4.1
 
 - Added freehand forbidden-tile drawing on Android and desktop: hold and drag to mark every crossed tile without gaps.

@@ -1681,8 +1681,6 @@ public class AutoRouteMod extends Mod{
         if(routeKeys.contains(key) && !isStart && !isGoal) return false;
         if(strictOre && !isGoal && tile.drop() != null) return false;
         if(!isStart && !isGoal && isBesideDrill(x, y)) return false;
-        if(!isStart && !isGoal && isFedByExistingTransport(x, y) &&
-            !isIntentionalConnectionOutputTile(x, y)) return false;
 
         BuildPlan queued = queuedPlansByKey.get(key);
         if(queued != null && !isStart && !isGoal) return false;
@@ -1691,9 +1689,17 @@ public class AutoRouteMod extends Mod{
             return isValidConnectionArrival(x, y, rotation);
         }
 
+        // Check a real conveyor crossing before the generic "fed by transport"
+        // protection. A conveyor in a working line is naturally fed by the belt
+        // behind it; treating that as contamination made every normal crossing
+        // look like a hard obstacle and forced an unnecessary bridge. A valid
+        // perpendicular crossing is safe because it becomes a Junction.
         if(!isStart && !isGoal && isExistingFriendlyConveyor(tile)){
             return canCrossExistingConveyor(tile, rotation);
         }
+
+        if(!isStart && !isGoal && isFedByExistingTransport(x, y) &&
+            !isIntentionalConnectionOutputTile(x, y)) return false;
 
         // Never use normal replacement rules to overwrite an unrelated built
         // transport block, router, bridge, pipe, or factory. Such blocks are
@@ -1724,11 +1730,16 @@ public class AutoRouteMod extends Mod{
         if(strictOre && tile.drop() != null) return 2;
         if(routeKeys.contains(key) && !(x == start.x && y == start.y)) return 2;
         if(isBesideDrill(x, y)) return 2;
-        if(isFedByExistingTransport(x, y) && !isIntentionalConnectionOutputTile(x, y)) return 2;
 
+        // A connected conveyor normally has another conveyor feeding it. Test
+        // whether it can become a Junction first; otherwise the generic feed
+        // protection incorrectly classifies a one-tile crossing as a hard
+        // obstacle and makes the bridge search win every time.
         if(isExistingFriendlyConveyor(tile)){
             return canCrossExistingConveyor(tile, rotation) ? 1 : 2;
         }
+
+        if(isFedByExistingTransport(x, y) && !isIntentionalConnectionOutputTile(x, y)) return 2;
         if(tile.build != null) return 2;
 
         return Build.validPlace(routeBlock, Vars.player.team(), x, y, rotation) ? 0 : 2;

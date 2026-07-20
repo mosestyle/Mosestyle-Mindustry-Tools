@@ -2,9 +2,11 @@
 
 A client-side Mindustry mod for Android and desktop. Tap a few waypoints and Auto Route calculates a safe conveyor or duct path, previews it, then adds normal Mindustry build plans.
 
-## Version 0.4.1 highlights
+## Version 0.4.2 highlights
 
-Version 0.4.1 adds fast forbidden-area drawing while retaining all seven major routing upgrades introduced in v0.4.0:
+Version 0.4.2 restores **Junction-first automatic crossings**: a normal one-tile perpendicular conveyor crossing is handled with a Junction instead of an unnecessary bridge. Bridges remain available for hard obstacles and spans that genuinely need them.
+
+It also retains fast forbidden-area drawing from v0.4.1 and all seven major routing upgrades introduced in v0.4.0:
 
 1. **Automatic bridges** over real obstacles and crowded conveyor crossings.
 2. **Automatic ore fallback** when no ore-free route exists.
@@ -182,3 +184,9 @@ build/libs/MindustryAutoRoute.jar
 ## License
 
 MIT License. See `LICENSE`.
+
+
+### Junction-first automatic bridges
+
+In **Bridges: automatic** mode, a normal one-tile perpendicular conveyor crossing is handled with a Junction first. Bridges are reserved for hard obstacles or spans that genuinely need them, such as multiple crossings or blocked terrain.
+
