@@ -3,6 +3,7 @@ package autoroute;
 import arc.Core;
 import arc.Events;
 import arc.input.KeyCode;
+import arc.input.InputProcessor;
 import arc.math.geom.Point2;
 import arc.scene.event.InputEvent;
 import arc.scene.event.InputListener;
@@ -13,6 +14,7 @@ import arc.scene.ui.layout.Table;
 import arc.struct.IntSet;
 import arc.struct.Seq;
 import mindustry.Vars;
+import mindustry.core.World;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType;
 import mindustry.graphics.Drawf;
@@ -77,17 +79,27 @@ public class AutoRouteMod extends Mod{
 
     private final Seq<Point2> forbiddenTiles = new Seq<>();
     private final IntSet forbiddenKeys = new IntSet();
+    private final Seq<Point2> forbiddenStrokeChanges = new Seq<>();
+    private final IntSet forbiddenStrokeChangedKeys = new IntSet();
 
     private final HashMap<Integer, BuildPlan> queuedPlansByKey = new HashMap<>();
     private final HashMap<String, PathResult> pathCache = new HashMap<>();
 
     private boolean active;
     private boolean forbidMode;
+    private boolean forbiddenDrawMarks = true;
+    private boolean forbiddenStrokeActive;
+    private boolean forbiddenStrokeDragged;
     private boolean optionsExpanded;
     private boolean bridgesEnabled = true;
     private boolean searchTimedOut;
     private boolean searchLimitHit;
     private Block routeBlock;
+    private Point2 forbiddenAnchor;
+    private Point2 forbiddenStrokeStart;
+    private Point2 forbiddenStrokeLast;
+    private int forbiddenStrokePointer = -1;
+    private InputProcessor forbiddenInput;
     private OreMode oreMode = OreMode.auto;
     private RoutePreference preference = RoutePreference.clean;
 
@@ -103,6 +115,7 @@ public class AutoRouteMod extends Mod{
     private TextButton oreButton;
     private TextButton preferenceButton;
     private TextButton forbiddenButton;
+    private TextButton forbiddenDrawButton;
     private TextButton bridgeButton;
     private TextButton optionsButton;
     private Table optionsTable;
@@ -116,15 +129,11 @@ public class AutoRouteMod extends Mod{
     public void init(){
         loadSettings();
         buildHud();
+        installForbiddenInput();
 
         Events.on(EventType.TapEvent.class, event -> {
-            if(!active || event.tile == null || event.player != Vars.player || Vars.state.isMenu()) return;
-
-            if(forbidMode){
-                toggleForbiddenTile(event.tile);
-            }else{
-                addWaypoint(event.tile);
-            }
+            if(!active || forbidMode || event.tile == null || event.player != Vars.player || Vars.state.isMenu()) return;
+            addWaypoint(event.tile);
         });
 
         Events.on(EventType.ResetEvent.class, event -> resetForWorldChange());
@@ -146,6 +155,113 @@ public class AutoRouteMod extends Mod{
             RoutePreference.clean.ordinal()
         ));
         bridgesEnabled = Core.settings.getBool(bridgesSetting, true);
+    }
+
+    private void installForbiddenInput(){
+        forbiddenInput = new InputProcessor(){
+            @Override
+            public boolean touchDown(int screenX, int screenY, int pointer, KeyCode button){
+                if(!canHandleForbiddenPointer(screenX, screenY, pointer, button)) return false;
+
+                Tile tile = tileAtScreen(screenX, screenY);
+                if(tile == null) return false;
+
+                forbiddenStrokeActive = true;
+                forbiddenStrokeDragged = false;
+                forbiddenStrokePointer = pointer;
+                forbiddenStrokeStart = new Point2(tile.x, tile.y);
+                forbiddenStrokeLast = new Point2(tile.x, tile.y);
+                forbiddenStrokeChanges.clear();
+                forbiddenStrokeChangedKeys.clear();
+
+                // Consuming this event prevents the normal mobile camera drag or
+                // desktop placement input from running while forbidden drawing is active.
+                return true;
+            }
+
+            @Override
+            public boolean touchDragged(int screenX, int screenY, int pointer){
+                if(!forbiddenStrokeActive || pointer != forbiddenStrokePointer) return false;
+
+                // Do not paint behind UI controls if a stroke happens to pass over them.
+                if(Core.scene.hasMouse(screenX, screenY)){
+                    forbiddenStrokeLast = null;
+                    return true;
+                }
+
+                Tile tile = tileAtScreen(screenX, screenY);
+                if(tile == null) return true;
+
+                Point2 current = new Point2(tile.x, tile.y);
+                if(forbiddenStrokeLast == null){
+                    forbiddenStrokeLast = current;
+                    applyForbiddenPoint(current.x, current.y, forbiddenDrawMarks,
+                        forbiddenStrokeChanges, forbiddenStrokeChangedKeys);
+                    forbiddenStrokeDragged = true;
+                    return true;
+                }
+
+                if(forbiddenStrokeLast.x == current.x && forbiddenStrokeLast.y == current.y) return true;
+
+                applyForbiddenLine(
+                    forbiddenStrokeLast.x,
+                    forbiddenStrokeLast.y,
+                    current.x,
+                    current.y,
+                    forbiddenDrawMarks,
+                    forbiddenStrokeChanges,
+                    forbiddenStrokeChangedKeys
+                );
+                forbiddenStrokeLast = current;
+                forbiddenStrokeDragged = true;
+                return true;
+            }
+
+            @Override
+            public boolean touchUp(int screenX, int screenY, int pointer, KeyCode button){
+                if(!forbiddenStrokeActive || pointer != forbiddenStrokePointer) return false;
+
+                Tile releaseTile = tileAtScreen(screenX, screenY);
+                if(releaseTile == null && forbiddenStrokeLast != null){
+                    releaseTile = Vars.world.tile(forbiddenStrokeLast.x, forbiddenStrokeLast.y);
+                }
+                if(releaseTile == null && forbiddenStrokeStart != null){
+                    releaseTile = Vars.world.tile(forbiddenStrokeStart.x, forbiddenStrokeStart.y);
+                }
+
+                if(forbiddenStrokeDragged){
+                    boolean committed = commitForbiddenBatch(
+                        forbiddenStrokeChanges,
+                        forbiddenDrawMarks,
+                        "That forbidden stroke leaves no valid route, so it was undone."
+                    );
+                    if(committed){
+                        // A freehand stroke is independent from the tap-to-tap chain.
+                        forbiddenAnchor = null;
+                    }
+                }else if(releaseTile != null){
+                    handleForbiddenTap(releaseTile);
+                }
+
+                resetForbiddenStroke();
+                return true;
+            }
+        };
+
+        // Place this before Mindustry's normal input processors so drawing is
+        // smooth on Android and does not pan the camera at the same time.
+        Core.input.getInputMultiplexer().addProcessor(0, forbiddenInput);
+    }
+
+    private boolean canHandleForbiddenPointer(int screenX, int screenY, int pointer, KeyCode button){
+        if(!active || !forbidMode || Vars.state.isMenu() || routeBlock == null || pointer != 0) return false;
+        if(!Vars.mobile && button != KeyCode.mouseLeft) return false;
+        return !Core.scene.hasMouse(screenX, screenY);
+    }
+
+    private Tile tileAtScreen(int screenX, int screenY){
+        var world = Core.input.mouseWorld(screenX, screenY);
+        return Vars.world.tileWorld(world.x, world.y);
     }
 
     private void buildHud(){
@@ -269,7 +385,7 @@ public class AutoRouteMod extends Mod{
             forbiddenButton.update(() -> {
                 forbiddenButton.setChecked(forbidMode);
                 forbiddenButton.setText(forbidMode ?
-                    "Forbidden: marking (" + forbiddenTiles.size + ")" :
+                    "Forbidden: drawing (" + forbiddenTiles.size + ")" :
                     "Forbidden tiles: " + forbiddenTiles.size
                 );
             });
@@ -279,6 +395,26 @@ public class AutoRouteMod extends Mod{
                 .height(40f);
 
             optionsTable.add(forbiddenRow).growX();
+
+            if(forbidMode){
+                optionsTable.row();
+
+                Table drawRow = new Table();
+                forbiddenDrawButton = drawRow.button("", Styles.clearTogglet, this::toggleForbiddenDrawMode)
+                    .width(123f)
+                    .height(40f)
+                    .get();
+                forbiddenDrawButton.update(() -> {
+                    forbiddenDrawButton.setChecked(!forbiddenDrawMarks);
+                    forbiddenDrawButton.setText(forbiddenDrawMarks ? "Draw: mark" : "Draw: erase");
+                });
+
+                drawRow.button("New line", Styles.cleart, this::newForbiddenChain)
+                    .width(123f)
+                    .height(40f);
+
+                optionsTable.add(drawRow).growX();
+            }
         }
 
         routePanel.pack();
@@ -388,7 +524,9 @@ public class AutoRouteMod extends Mod{
     private String statusText(){
         if(routeBlock == null) return "[accent]Auto Route[]";
         if(forbidMode){
-            return "[scarlet]Mark forbidden tiles[]\nTap tiles to toggle";
+            String action = forbiddenDrawMarks ? "Mark" : "Erase";
+            String hint = forbiddenAnchor == null ? "Tap Point A or drag" : "Tap next point or drag";
+            return "[scarlet]" + action + " forbidden tiles[]\n" + hint;
         }
         if(waypoints.isEmpty()) return "[accent]" + routeBlock.localizedName + "[]\nTap Point A";
 
@@ -424,6 +562,8 @@ public class AutoRouteMod extends Mod{
         clearRoute();
         active = true;
         forbidMode = false;
+        forbiddenAnchor = null;
+        resetForbiddenStroke();
         refreshQueuedPlanSnapshot();
         routePanel.toFront();
 
@@ -434,6 +574,8 @@ public class AutoRouteMod extends Mod{
     private void stopRouting(boolean restoreBlock){
         active = false;
         forbidMode = false;
+        forbiddenAnchor = null;
+        resetForbiddenStroke();
         clearRoute();
 
         if(restoreBlock && routeBlock != null && Vars.control != null && Vars.control.input != null){
@@ -444,6 +586,8 @@ public class AutoRouteMod extends Mod{
     private void resetForWorldChange(){
         active = false;
         forbidMode = false;
+        forbiddenAnchor = null;
+        resetForbiddenStroke();
         clearRoute();
         clearForbiddenTilesInternal(false);
         routeBlock = null;
@@ -498,49 +642,124 @@ public class AutoRouteMod extends Mod{
 
     private void toggleForbidMode(){
         forbidMode = !forbidMode;
+        forbiddenAnchor = null;
+        resetForbiddenStroke();
+        rebuildOptionsTable();
+
+        if(forbidMode){
+            Vars.ui.showInfoToast("Tap points to draw connected forbidden lines, or hold and drag for freehand marking.", 5f);
+        }
     }
 
-    private void toggleForbiddenTile(Tile tile){
-        int key = tileKey(tile.x, tile.y);
-        boolean removed = forbiddenKeys.remove(key);
-        Point2 removedPoint = null;
+    private void toggleForbiddenDrawMode(){
+        forbiddenDrawMarks = !forbiddenDrawMarks;
+        forbiddenAnchor = null;
+        resetForbiddenStroke();
+    }
 
-        if(removed){
-            for(int i = forbiddenTiles.size - 1; i >= 0; i--){
-                Point2 point = forbiddenTiles.get(i);
-                if(point.x == tile.x && point.y == tile.y){
-                    removedPoint = forbiddenTiles.remove(i);
-                    break;
-                }
-            }
+    private void newForbiddenChain(){
+        forbiddenAnchor = null;
+        resetForbiddenStroke();
+    }
+
+    private void handleForbiddenTap(Tile tile){
+        Seq<Point2> changes = new Seq<>();
+        IntSet changeKeys = new IntSet();
+        Point2 nextAnchor = new Point2(tile.x, tile.y);
+
+        if(forbiddenAnchor == null){
+            applyForbiddenPoint(tile.x, tile.y, forbiddenDrawMarks, changes, changeKeys);
         }else{
-            forbiddenKeys.add(key);
-            forbiddenTiles.add(new Point2(tile.x, tile.y));
+            applyForbiddenLine(
+                forbiddenAnchor.x,
+                forbiddenAnchor.y,
+                tile.x,
+                tile.y,
+                forbiddenDrawMarks,
+                changes,
+                changeKeys
+            );
         }
+
+        if(commitForbiddenBatch(
+            changes,
+            forbiddenDrawMarks,
+            "That forbidden line leaves no valid route, so it was undone."
+        )){
+            forbiddenAnchor = nextAnchor;
+        }
+    }
+
+    private void applyForbiddenLine(int x1, int y1, int x2, int y2, boolean mark,
+                                    Seq<Point2> changes, IntSet changeKeys){
+        World.raycastEach(x1, y1, x2, y2, (x, y) -> {
+            applyForbiddenPoint(x, y, mark, changes, changeKeys);
+            return false;
+        });
+    }
+
+    private void applyForbiddenPoint(int x, int y, boolean mark,
+                                     Seq<Point2> changes, IntSet changeKeys){
+        Tile tile = Vars.world.tile(x, y);
+        if(tile == null) return;
+
+        int key = tileKey(x, y);
+        boolean currentlyMarked = forbiddenKeys.contains(key);
+        if(currentlyMarked == mark) return;
+
+        if(mark){
+            forbiddenKeys.add(key);
+            forbiddenTiles.add(new Point2(x, y));
+        }else{
+            forbiddenKeys.remove(key);
+            removeForbiddenPoint(x, y);
+        }
+
+        if(changes != null && changeKeys != null && !changeKeys.contains(key)){
+            changeKeys.add(key);
+            changes.add(new Point2(x, y));
+        }
+    }
+
+    private void removeForbiddenPoint(int x, int y){
+        for(int i = forbiddenTiles.size - 1; i >= 0; i--){
+            Point2 point = forbiddenTiles.get(i);
+            if(point.x == x && point.y == y){
+                forbiddenTiles.remove(i);
+                return;
+            }
+        }
+    }
+
+    private boolean commitForbiddenBatch(Seq<Point2> changes, boolean markedState, String failureMessage){
+        if(changes == null || changes.isEmpty()) return true;
 
         forbiddenRevision++;
         pathCache.clear();
 
         if(waypoints.size > 1 && !recalculateAllSegments(true)){
-            // Revert the mark if it destroys the current route entirely.
-            if(removed){
-                forbiddenKeys.add(key);
-                forbiddenTiles.add(removedPoint == null ? new Point2(tile.x, tile.y) : removedPoint);
-            }else{
-                forbiddenKeys.remove(key);
-                for(int i = forbiddenTiles.size - 1; i >= 0; i--){
-                    Point2 point = forbiddenTiles.get(i);
-                    if(point.x == tile.x && point.y == tile.y){
-                        forbiddenTiles.remove(i);
-                        break;
-                    }
-                }
+            for(Point2 point : changes){
+                applyForbiddenPoint(point.x, point.y, !markedState, null, null);
             }
+
             forbiddenRevision++;
             pathCache.clear();
             recalculateAllSegments(true);
-            Vars.ui.showInfoToast("That forbidden tile leaves no valid route, so the change was undone.", 4f);
+            Vars.ui.showInfoToast(failureMessage, 4f);
+            return false;
         }
+
+        return true;
+    }
+
+    private void resetForbiddenStroke(){
+        forbiddenStrokeActive = false;
+        forbiddenStrokeDragged = false;
+        forbiddenStrokePointer = -1;
+        forbiddenStrokeStart = null;
+        forbiddenStrokeLast = null;
+        forbiddenStrokeChanges.clear();
+        forbiddenStrokeChangedKeys.clear();
     }
 
     private void clearForbiddenTiles(){
@@ -551,6 +770,8 @@ public class AutoRouteMod extends Mod{
     private void clearForbiddenTilesInternal(boolean recalculate){
         forbiddenTiles.clear();
         forbiddenKeys.clear();
+        forbiddenAnchor = null;
+        resetForbiddenStroke();
         forbiddenRevision++;
         pathCache.clear();
         if(recalculate && waypoints.size > 1){
@@ -987,6 +1208,13 @@ public class AutoRouteMod extends Mod{
             Tile tile = Vars.world.tile(point.x, point.y);
             if(tile != null){
                 Drawf.square(tile.drawx(), tile.drawy(), Vars.tilesize / 2f - 1f, Pal.remove);
+            }
+        }
+
+        if(forbidMode && forbiddenAnchor != null){
+            Tile anchorTile = Vars.world.tile(forbiddenAnchor.x, forbiddenAnchor.y);
+            if(anchorTile != null){
+                Drawf.square(anchorTile.drawx(), anchorTile.drawy(), Vars.tilesize / 2f + 1f, Pal.accent);
             }
         }
 

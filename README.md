@@ -2,9 +2,9 @@
 
 A client-side Mindustry mod for Android and desktop. Tap a few waypoints and Auto Route calculates a safe conveyor or duct path, previews it, then adds normal Mindustry build plans.
 
-## Version 0.4.0 highlights
+## Version 0.4.1 highlights
 
-Version 0.4.0 implements the seven major routing upgrades requested after v0.3.0:
+Version 0.4.1 adds fast forbidden-area drawing while retaining all seven major routing upgrades introduced in v0.4.0:
 
 1. **Automatic bridges** over real obstacles and crowded conveyor crossings.
 2. **Automatic ore fallback** when no ore-free route exists.
@@ -83,7 +83,12 @@ Ordinary automatically selected tiles still avoid accidental merges.
 
 ## Forbidden tiles
 
-Open **Options**, enable **Forbidden tiles**, then tap map tiles to toggle them.
+Open **Options** and enable **Forbidden tiles**. You can now draw them in two ways on both Android and desktop:
+
+- **Tap-to-tap lines:** tap Point A, then Point B. Every tile between them is marked. Further taps continue from the previous point, so diagonal lines, polygons, circles, and other shapes can be outlined quickly.
+- **Freehand drag:** hold and drag across the map. Every crossed tile is marked, and gaps between input events are filled automatically.
+
+The current tap-to-tap anchor is highlighted. Tap **New line** to finish that chain and start a separate shape somewhere else. Use **Draw: mark / Draw: erase** to switch between adding and removing forbidden tiles.
 
 Forbidden tiles are shown with a red outline. Auto Route will neither place a route on them nor bridge through their airspace. This is useful for reserving room for future factories, defenses, power, liquids, or access paths.
 
@@ -137,7 +142,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open the **Actions** tab and wait for the build to finish.
-4. The workflow creates tag `v0.4.0`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
+4. The workflow creates tag `v0.4.1`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1
+
+- Added freehand forbidden-tile drawing on Android and desktop: hold and drag to mark every crossed tile without gaps.
+- Added waypoint-style forbidden lines: tap Point A, then Point B, C, and more to draw connected straight or diagonal forbidden segments.
+- Added **Draw: mark / Draw: erase** so large areas can be corrected with the same drag and line gestures.
+- Added **New line** to end the current point chain and begin another shape elsewhere.
+- Added a highlighted anchor tile showing the current start of the next forbidden line.
+- Batched forbidden edits so route recalculation runs once per drag stroke or completed line instead of once per tile.
+- Forbidden drawing now consumes the map gesture, preventing the camera from panning while the player is painting tiles.
+
 ## 0.4.0
 
 - Added automatic real bridge placement for Conveyor and Duct families using Mindustry's official bridge replacements and range rules.
