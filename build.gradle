@@ -1,0 +1,102 @@
+apply plugin: "java"
+
+version = "0.2.0"
+
+sourceSets.main.java.srcDirs = ["src"]
+
+repositories{
+    mavenCentral()
+
+    // Official Mindustry Java-mod dependency layout.
+    ivy{
+        url = "https://github.com/"
+        patternLayout{ artifact "/[organisation]/[module]/releases/download/[revision]/dependencies.jar" }
+        metadataSources{ artifact() }
+    }
+}
+
+java{
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+ext{
+    mindustryVersion = "v159.7"
+    isWindows = System.getProperty("os.name").toLowerCase().contains("windows")
+    sdkRoot = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+}
+
+dependencies{
+    compileOnly "Anuken:Mindustry:${mindustryVersion}"
+}
+
+tasks.register("jarAndroid"){
+    dependsOn "jar"
+
+    doLast{
+        if(!sdkRoot || !new File(sdkRoot).exists()){
+            throw new GradleException("No valid Android SDK found. Set ANDROID_HOME or ANDROID_SDK_ROOT.")
+        }
+
+        def platformRoot = new File("${sdkRoot}/platforms/").listFiles()
+            .sort()
+            .reverse()
+            .find{ file -> new File(file, "android.jar").exists() }
+
+        if(!platformRoot){
+            throw new GradleException("No android.jar found. Install an Android SDK platform.")
+        }
+
+        def classpath = (configurations.compileClasspath.asList() +
+            configurations.runtimeClasspath.asList() +
+            [new File(platformRoot, "android.jar")])
+            .collect{ "--classpath ${it.path}" }
+            .join(" ")
+
+        def d8 = isWindows ? "d8.bat" : "d8"
+        def command = "${d8} ${classpath} --min-api 21 --output MindustryAutoRouteAndroid.jar MindustryAutoRouteDesktop.jar"
+        def result = command.execute(null, new File("build/libs"))
+        result.waitForProcessOutput(System.out, System.err)
+
+        if(result.exitValue() != 0){
+            throw new GradleException("d8 failed with exit code ${result.exitValue()}.")
+        }
+    }
+}
+
+jar{
+    archiveFileName = "MindustryAutoRouteDesktop.jar"
+
+    from{
+        configurations.runtimeClasspath.collect{ it.isDirectory() ? it : zipTree(it) }
+    }
+
+    from(projectDir){
+        include "mod.hjson"
+        include "icon.png"
+    }
+
+    from("assets/"){
+        include "**"
+    }
+}
+
+tasks.register("deploy", Jar){
+    dependsOn "jarAndroid"
+    dependsOn "jar"
+
+    archiveFileName = "MindustryAutoRoute.jar"
+
+    from{
+        [
+            zipTree("build/libs/MindustryAutoRouteDesktop.jar"),
+            zipTree("build/libs/MindustryAutoRouteAndroid.jar")
+        ]
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    doLast{
+        delete "build/libs/MindustryAutoRouteAndroid.jar"
+    }
+}
