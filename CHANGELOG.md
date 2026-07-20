@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0
+
+- Added automatic real bridge placement for Conveyor and Duct families using Mindustry's official bridge replacements and range rules.
+- Kept Junction as the preferred solution for one perpendicular crossing; bridges can handle hard obstacles or clusters of multiple conveyor crossings.
+- Added a visible bridge-span preview and preserved Item Bridge link configuration in queued plans.
+- Added default automatic ore fallback: first search without ore, then retry with a strong ore penalty only when necessary.
+- Added three ore modes: automatic fallback, never cross, and allow with penalty.
+- Added player-marked forbidden tiles with red map overlays and a reset control. Forbidden tiles also block bridge airspace.
+- Added awareness of the player's existing build queue and current placement previews. Planned structures are not overwritten.
+- Added queue-change detection before Build; changed queues cause route recalculation and require a second confirmation.
+- Added route preferences for shortest, straightest, and least interference.
+- Added explicit connections to existing or planned compatible conveyor/duct endpoints.
+- Added direction-aware endpoint pathfinding: starts follow their output direction, armored endpoints require rear input, and ordinary conveyors/ducts avoid invalid head-on input while still allowing valid side approaches.
+- Added mobile-safe maximum segment distance, node limits, time budgets, and a small path-result cache.
+- Made route commits all-or-nothing so bridge pairs and other routes cannot be partially queued after a map change.
+- Prevented automatic bridge jumps from skipping across a requested waypoint.
+- Hardened obstacle handling so unrelated built transportation blocks, factories, pipes, and structures are never silently replaced.
+- Added output-cell avoidance for built and planned conveyor/duct lines to prevent accidental item merging.
+- Retained automatic Junction crossings, ore/resource awareness, drill-output avoidance, movable UI, and AutoDrill-aligned activation icon.
+
 ## 0.3.0
 
 - Matched AutoDrill's exact top-right HUD table structure, 30px icon size, and 155px right margin, with Auto Route placed on the row directly below it.
