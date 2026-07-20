@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Fixed the movable toolbar compilation error against Mindustry/Arc v159.7.
+- Replaced invalid no-argument `Element.getX()` / `getY()` calls with the supported element position fields.
+- Simplified toolbar dragging with `moveBy(...)`.
+
 ## 0.2.0
 
 - Replaced the large **Auto Route** text button with the mod icon.

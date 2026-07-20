@@ -2,8 +2,9 @@
 
 A client-side Mindustry mod for Android and desktop that builds conveyor routes from a few tapped waypoints.
 
-## Version 0.2.0 highlights
+## Version 0.2.1 highlights
 
+- Fixed the movable toolbar build error for the current Mindustry/Arc API.
 - Small icon button instead of the wide **Auto Route** text button.
 - Positioned below AutoDrill's top-right toggle so both can be visible.
 - Compact routing toolbar that can be dragged anywhere using the four-way arrow.
@@ -49,17 +50,16 @@ YOUR-GITHUB-USERNAME/Mindustry-Auto-Route
 
 Restart Mindustry when prompted.
 
-## Build with GitHub Actions
+## Build and release with GitHub Actions
 
-The included workflow builds one Android-and-desktop-compatible JAR.
+The included workflow builds one Android-and-desktop-compatible JAR and publishes it automatically from the `main` branch.
 
 1. Upload the project contents to your repository.
-2. Commit and push the changes.
+2. Commit and push the changes to `main`.
 3. Check the **Actions** tab for the build result.
-4. Create a release/tag named `v0.2.0`.
-5. The workflow attaches `MindustryAutoRoute.jar` to the release.
+4. When the build succeeds, the workflow creates tag `v0.2.1`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
 
-Important: keep the version in `mod.hjson` equal to the latest public release version.
+For later versions, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 
 ## Local build
 
@@ -90,3 +90,17 @@ build/libs/MindustryAutoRoute.jar
 ## License
 
 MIT License. See `LICENSE`.
+
+## Automatic GitHub tags and releases
+
+The included workflow can create the Git tag and GitHub Release automatically.
+
+For each new public version:
+
+1. Change `version` in `mod.hjson`, for example from `0.2.1` to `0.2.2`.
+2. Change `version` near the top of `build.gradle` to the same value.
+3. Commit and push the files to the `main` branch.
+
+GitHub Actions then builds the Android/desktop JAR, creates the corresponding tag such as `v0.2.2`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
+
+If that version's release already exists, the workflow still builds the project but does not replace the published release. This keeps every public version reproducible.

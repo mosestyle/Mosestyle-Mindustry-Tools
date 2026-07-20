@@ -1,9 +1,8 @@
-name: Build Mindustry Auto Route
+name: Build and release Mindustry Auto Route
 
 on:
   push:
     branches: ["**"]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -17,6 +16,21 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Read version from mod.hjson
+        id: version
+        shell: bash
+        run: |
+          version="$(sed -nE 's/^[[:space:]]*version:[[:space:]]*"([^"]+)".*/\1/p' mod.hjson | head -n 1)"
+
+          if [ -z "$version" ]; then
+            echo "Could not read version from mod.hjson." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "Building version $version"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -35,16 +49,31 @@ jobs:
       - name: Build Android + desktop JAR
         run: gradle deploy --no-daemon
 
-      - name: Upload build artifact
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
           archive: false
-          name: MindustryAutoRoute
+          name: MindustryAutoRoute-${{ steps.version.outputs.version }}
           path: build/libs/MindustryAutoRoute.jar
 
-      - name: Attach JAR to tagged GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: build/libs/MindustryAutoRoute.jar
-          generate_release_notes: true
+      - name: Automatically create tag and GitHub release
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+            echo "No new release was created. Increase version in mod.hjson for the next release."
+            exit 0
+          fi
+
+          gh release create "$TAG" \
+            build/libs/MindustryAutoRoute.jar \
+            --target "$GITHUB_SHA" \
+            --title "Mindustry Auto Route $TAG" \
+            --generate-notes

@@ -176,10 +176,7 @@ public class AutoRouteMod extends Mod{
 
             @Override
             public void touchDragged(InputEvent event, float x, float y, int pointer){
-                routePanel.setPosition(
-                    routePanel.getX() + x - grabX,
-                    routePanel.getY() + y - grabY
-                );
+                routePanel.moveBy(x - grabX, y - grabY);
                 clampPanelToScreen();
             }
 
@@ -243,8 +240,8 @@ public class AutoRouteMod extends Mod{
         boolean portrait = Core.scene.getHeight() > Core.scene.getWidth();
         String orientation = portrait ? "portrait-" : "landscape-";
 
-        float centerX = (routePanel.getX() + routePanel.getWidth() / 2f) / Core.scene.getWidth();
-        float centerY = (routePanel.getY() + routePanel.getHeight() / 2f) / Core.scene.getHeight();
+        float centerX = (routePanel.x + routePanel.getWidth() / 2f) / Core.scene.getWidth();
+        float centerY = (routePanel.y + routePanel.getHeight() / 2f) / Core.scene.getHeight();
 
         Core.settings.put(panelSettingPrefix + orientation + "x", centerX);
         Core.settings.put(panelSettingPrefix + orientation + "y", centerY);
@@ -257,8 +254,8 @@ public class AutoRouteMod extends Mod{
         float maxY = Math.max(0f, Core.scene.getHeight() - routePanel.getHeight());
 
         routePanel.setPosition(
-            Math.max(0f, Math.min(routePanel.getX(), maxX)),
-            Math.max(0f, Math.min(routePanel.getY(), maxY))
+            Math.max(0f, Math.min(routePanel.x, maxX)),
+            Math.max(0f, Math.min(routePanel.y, maxY))
         );
     }
 
