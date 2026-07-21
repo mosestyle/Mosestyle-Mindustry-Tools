@@ -19,7 +19,7 @@ Repository: https://github.com/mosestyle/Mosestyle-Mindustry-Tools
 
 5. Restart Mindustry when prompted.
 
-## Version 0.8.0 highlights
+## Version 0.8.1 highlights
 
 ### Custom music player
 
@@ -279,7 +279,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open **Actions** and wait for the build to finish.
-4. The workflow creates tag `v0.8.0`, creates the GitHub Release, and attaches `MosestyleMindustryTools.jar`.
+4. The workflow creates tag `v0.8.1`, creates the GitHub Release, and attaches `MosestyleMindustryTools.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 

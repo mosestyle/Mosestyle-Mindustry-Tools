@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1
+
+- Fixed the custom music settings build failure against Mindustry v159.7.
+- Updated custom section and action preferences to extend `SettingsMenuDialog.SettingsTable.Setting`, which is the actual nested settings base class in Mindustry v159.7.
+- Removed the now-unused direct `SettingsMenuDialog` import.
+
 ## 0.8.0
 
 - Added a cross-platform custom music player with its own independent volume.

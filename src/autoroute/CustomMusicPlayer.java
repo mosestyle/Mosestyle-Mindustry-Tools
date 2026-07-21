@@ -24,7 +24,6 @@ import mindustry.gen.Icon;
 import mindustry.ui.FileChooser;
 import mindustry.ui.Styles;
 import mindustry.ui.dialogs.BaseDialog;
-import mindustry.ui.dialogs.SettingsMenuDialog;
 import mindustry.ui.dialogs.SettingsMenuDialog.SettingsTable;
 
 import java.util.Locale;
@@ -761,7 +760,7 @@ public class CustomMusicPlayer{
     }
 
 
-    private static class SectionSetting extends SettingsMenuDialog.Setting{
+    private static class SectionSetting extends SettingsTable.Setting{
         SectionSetting(String name){
             super(name);
         }
@@ -778,7 +777,7 @@ public class CustomMusicPlayer{
     }
 
     /** Button row that survives SettingsTable rebuilds like a normal preference. */
-    private static class ActionSetting extends SettingsMenuDialog.Setting{
+    private static class ActionSetting extends SettingsTable.Setting{
         private final Drawable icon;
         private final Runnable action;
 
