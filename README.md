@@ -2,21 +2,16 @@
 
 A client-side Mindustry mod for Android and desktop. Tap a few waypoints and Auto Route calculates a safe conveyor or duct path, previews it, then adds normal Mindustry build plans.
 
-## Version 0.4.2 highlights
+## Version 0.5.0 highlights
 
-Version 0.4.2 restores **Junction-first automatic crossings**: a normal one-tile perpendicular conveyor crossing is handled with a Junction instead of an unnecessary bridge. Bridges remain available for hard obstacles and spans that genuinely need them.
+Version 0.5.0 focuses on mobile usability and route reliability:
 
-It also retains fast forbidden-area drawing from v0.4.1 and all seven major routing upgrades introduced in v0.4.0:
+- **Cleaner GUI:** Options, Ore, Route, Bridges, Forbidden tiles, and Draw labels use Mindustry's orange accent color. The collapsed Options button stays compact in portrait mode.
+- **Pan without leaving Forbidden mode:** on Android, quick-drag moves the map. Hold for about 350 ms and then drag to draw or erase forbidden tiles. Taps still create connected Point A → Point B lines.
+- **Readable portrait messages:** Auto Route instructions and errors automatically wrap onto multiple lines on narrow screens.
+- **More reliable first route:** stale vanilla placement previews are cleared/ignored, and a bounded automatic retry handles rare mobile timing spikes.
 
-1. **Automatic bridges** over real obstacles and crowded conveyor crossings.
-2. **Automatic ore fallback** when no ore-free route exists.
-3. **Forbidden tiles** that the router must not use or bridge across.
-4. **Build-queue awareness** for already planned, unbuilt structures.
-5. **Route preferences** for shortest, straightest, or least-interference paths.
-6. **Intentional connections** to existing or planned conveyor/duct endpoints.
-7. **Mobile performance protection** with distance, time, node, and cache limits.
-
-The v0.3 features remain included: automatic junction crossings, drill-output avoidance, obstacle avoidance, movable controls, separate portrait/landscape panel positions, and the AutoDrill-aligned HUD icon.
+All v0.4 features remain included: Junction-first crossings, automatic bridges, automatic ore fallback, forbidden tiles, build-queue awareness, route preferences, intentional connections, drill-output avoidance, movable controls, and Android/desktop support.
 
 ## Basic use
 
@@ -85,10 +80,12 @@ Ordinary automatically selected tiles still avoid accidental merges.
 
 ## Forbidden tiles
 
-Open **Options** and enable **Forbidden tiles**. You can now draw them in two ways on both Android and desktop:
+Open **Options** and enable **Forbidden tiles**. The controls are designed so you can draw and navigate without repeatedly leaving the mode:
 
 - **Tap-to-tap lines:** tap Point A, then Point B. Every tile between them is marked. Further taps continue from the previous point, so diagonal lines, polygons, circles, and other shapes can be outlined quickly.
-- **Freehand drag:** hold and drag across the map. Every crossed tile is marked, and gaps between input events are filled automatically.
+- **Android freehand:** hold one finger still for about 350 ms, then drag. Every crossed tile is marked or erased, with gaps filled automatically.
+- **Android map movement:** quick-drag immediately pans the map without leaving Forbidden mode.
+- **Desktop freehand:** click and drag immediately to draw or erase.
 
 The current tap-to-tap anchor is highlighted. Tap **New line** to finish that chain and start a separate shape somewhere else. Use **Draw: mark / Draw: erase** to switch between adding and removing forbidden tiles.
 
@@ -98,9 +95,9 @@ Tap **Reset** to clear all forbidden tiles. Marks are kept for the current loade
 
 ## Existing build-plan awareness
 
-Auto Route reads the local player's current construction queue and the live Mindustry placement previews.
+Auto Route reads the local player's committed construction queue. Temporary vanilla drag/selection previews are deliberately ignored because stale preview entries could incorrectly block a route.
 
-- Planned structures are treated as occupied.
+- Queued structures are treated as occupied.
 - The router may bridge over them when appropriate, but does not overwrite them.
 - A compatible planned conveyor/duct may be tapped intentionally as an endpoint.
 - If the build queue changes after the route was previewed, **Build** recalculates it and asks you to review the updated preview before committing.
@@ -117,6 +114,7 @@ To prevent long route calculations from freezing a phone:
 - Android segments are limited to 500 Manhattan tiles; desktop allows 1000.
 - Searches stop at a platform-specific node limit.
 - Android searches use a shorter time budget than desktop.
+- A bounded second attempt automatically handles rare first-run timing spikes on reasonably short segments.
 - Recent path results are cached.
 - Very long routes ask you to add an intermediate waypoint.
 
@@ -144,7 +142,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open the **Actions** tab and wait for the build to finish.
-4. The workflow creates tag `v0.4.1`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
+4. The workflow creates tag `v0.5.0`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 

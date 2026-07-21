@@ -61,6 +61,8 @@ public class AutoRouteMod extends Mod{
     private static final int desktopMaxSearchCells = 450_000;
     private static final int mobileMaxSearchCells = 180_000;
     private static final int pathCacheLimit = 32;
+    private static final long mobileForbiddenHoldNanos = 350_000_000L;
+    private static final float mobileForbiddenPanThreshold = 12f;
 
     private static final String oreModeSetting = "mindustry-auto-route-ore-mode";
     private static final String legacyAvoidOreSetting = "mindustry-auto-route-avoid-ore";
@@ -99,6 +101,13 @@ public class AutoRouteMod extends Mod{
     private Point2 forbiddenStrokeStart;
     private Point2 forbiddenStrokeLast;
     private int forbiddenStrokePointer = -1;
+    private boolean forbiddenPointerPanning;
+    private long forbiddenPointerDownNanos;
+    private int forbiddenPointerStartScreenX;
+    private int forbiddenPointerStartScreenY;
+    private int forbiddenPointerLastScreenX;
+    private int forbiddenPointerLastScreenY;
+    private boolean searchRetryPass;
     private InputProcessor forbiddenInput;
     private OreMode oreMode = OreMode.auto;
     private RoutePreference preference = RoutePreference.clean;
@@ -166,22 +175,53 @@ public class AutoRouteMod extends Mod{
                 Tile tile = tileAtScreen(screenX, screenY);
                 if(tile == null) return false;
 
-                forbiddenStrokeActive = true;
-                forbiddenStrokeDragged = false;
                 forbiddenStrokePointer = pointer;
                 forbiddenStrokeStart = new Point2(tile.x, tile.y);
                 forbiddenStrokeLast = new Point2(tile.x, tile.y);
                 forbiddenStrokeChanges.clear();
                 forbiddenStrokeChangedKeys.clear();
+                forbiddenStrokeDragged = false;
+                forbiddenPointerPanning = false;
+                forbiddenPointerDownNanos = System.nanoTime();
+                forbiddenPointerStartScreenX = forbiddenPointerLastScreenX = screenX;
+                forbiddenPointerStartScreenY = forbiddenPointerLastScreenY = screenY;
 
-                // Consuming this event prevents the normal mobile camera drag or
-                // desktop placement input from running while forbidden drawing is active.
+                // Desktop keeps immediate click-and-drag drawing. On Android,
+                // a quick drag pans the camera; holding for 350 ms before
+                // dragging starts a forbidden-tile stroke.
+                forbiddenStrokeActive = !Vars.mobile;
                 return true;
             }
 
             @Override
             public boolean touchDragged(int screenX, int screenY, int pointer){
-                if(!forbiddenStrokeActive || pointer != forbiddenStrokePointer) return false;
+                if(pointer != forbiddenStrokePointer || forbiddenStrokeStart == null) return false;
+
+                if(Vars.mobile && !forbiddenStrokeActive){
+                    if(forbiddenPointerPanning){
+                        panForbiddenCamera(screenX, screenY);
+                        return true;
+                    }
+
+                    long heldNanos = System.nanoTime() - forbiddenPointerDownNanos;
+                    float dx = screenX - forbiddenPointerStartScreenX;
+                    float dy = screenY - forbiddenPointerStartScreenY;
+                    float threshold = mobileForbiddenPanThreshold * Math.max(1f, Core.graphics.getDensity());
+
+                    if(heldNanos < mobileForbiddenHoldNanos && dx * dx + dy * dy >= threshold * threshold){
+                        forbiddenPointerPanning = true;
+                        panForbiddenCamera(screenX, screenY);
+                        return true;
+                    }
+
+                    if(heldNanos < mobileForbiddenHoldNanos){
+                        return true;
+                    }
+
+                    forbiddenStrokeActive = true;
+                }
+
+                if(!forbiddenStrokeActive) return true;
 
                 // Do not paint behind UI controls if a stroke happens to pass over them.
                 if(Core.scene.hasMouse(screenX, screenY)){
@@ -219,13 +259,18 @@ public class AutoRouteMod extends Mod{
 
             @Override
             public boolean touchUp(int screenX, int screenY, int pointer, KeyCode button){
-                if(!forbiddenStrokeActive || pointer != forbiddenStrokePointer) return false;
+                if(pointer != forbiddenStrokePointer || forbiddenStrokeStart == null) return false;
+
+                if(forbiddenPointerPanning){
+                    resetForbiddenStroke();
+                    return true;
+                }
 
                 Tile releaseTile = tileAtScreen(screenX, screenY);
                 if(releaseTile == null && forbiddenStrokeLast != null){
                     releaseTile = Vars.world.tile(forbiddenStrokeLast.x, forbiddenStrokeLast.y);
                 }
-                if(releaseTile == null && forbiddenStrokeStart != null){
+                if(releaseTile == null){
                     releaseTile = Vars.world.tile(forbiddenStrokeStart.x, forbiddenStrokeStart.y);
                 }
 
@@ -248,8 +293,9 @@ public class AutoRouteMod extends Mod{
             }
         };
 
-        // Place this before Mindustry's normal input processors so drawing is
-        // smooth on Android and does not pan the camera at the same time.
+        // Place this before Mindustry's normal input processors. Forbidden mode
+        // consumes its own gestures, while quick Android drags pan the camera
+        // directly and long-hold drags draw tiles.
         Core.input.getInputMultiplexer().addProcessor(0, forbiddenInput);
     }
 
@@ -257,6 +303,24 @@ public class AutoRouteMod extends Mod{
         if(!active || !forbidMode || Vars.state.isMenu() || routeBlock == null || pointer != 0) return false;
         if(!Vars.mobile && button != KeyCode.mouseLeft) return false;
         return !Core.scene.hasMouse(screenX, screenY);
+    }
+
+    private void panForbiddenCamera(int screenX, int screenY){
+        float scale = Core.camera.width / Math.max(1f, Core.graphics.getWidth());
+        float deltaX = (screenX - forbiddenPointerLastScreenX) * scale;
+        float deltaY = (screenY - forbiddenPointerLastScreenY) * scale;
+
+        Core.camera.position.x -= deltaX;
+        Core.camera.position.y -= deltaY;
+        Core.camera.position.clamp(
+            -Core.camera.width / 4f,
+            -Core.camera.height / 4f,
+            Vars.world.unitWidth() + Core.camera.width / 4f,
+            Vars.world.unitHeight() + Core.camera.height / 4f
+        );
+
+        forbiddenPointerLastScreenX = screenX;
+        forbiddenPointerLastScreenY = screenY;
     }
 
     private Tile tileAtScreen(int screenX, int screenY){
@@ -320,7 +384,7 @@ public class AutoRouteMod extends Mod{
 
         routePanel.row();
 
-        optionsButton = routePanel.button("Options +", Styles.cleart, this::toggleOptions)
+        optionsButton = routePanel.button("[accent]Options[] +", Styles.cleart, this::toggleOptions)
             .colspan(3)
             .growX()
             .height(40f)
@@ -347,7 +411,7 @@ public class AutoRouteMod extends Mod{
         if(optionsTable == null) return;
 
         optionsTable.clearChildren();
-        optionsButton.setText(optionsExpanded ? "Options -" : optionsSummary());
+        optionsButton.setText(optionsExpanded ? "[accent]Options[] -" : optionsSummary());
 
         if(optionsExpanded){
             oreButton = optionsTable.button("", Styles.cleart, this::cycleOreMode)
@@ -372,7 +436,7 @@ public class AutoRouteMod extends Mod{
                 .get();
             bridgeButton.update(() -> {
                 bridgeButton.setChecked(bridgesEnabled);
-                bridgeButton.setText(bridgesEnabled ? "Bridges: automatic" : "Bridges: off");
+                bridgeButton.setText(bridgesEnabled ? "[accent]Bridges:[] automatic" : "[accent]Bridges:[] off");
             });
 
             optionsTable.row();
@@ -385,8 +449,8 @@ public class AutoRouteMod extends Mod{
             forbiddenButton.update(() -> {
                 forbiddenButton.setChecked(forbidMode);
                 forbiddenButton.setText(forbidMode ?
-                    "Forbidden: drawing (" + forbiddenTiles.size + ")" :
-                    "Forbidden tiles: " + forbiddenTiles.size
+                    "[accent]Forbidden:[] drawing (" + forbiddenTiles.size + ")" :
+                    "[accent]Forbidden tiles:[] " + forbiddenTiles.size
                 );
             });
 
@@ -406,7 +470,7 @@ public class AutoRouteMod extends Mod{
                     .get();
                 forbiddenDrawButton.update(() -> {
                     forbiddenDrawButton.setChecked(!forbiddenDrawMarks);
-                    forbiddenDrawButton.setText(forbiddenDrawMarks ? "Draw: mark" : "Draw: erase");
+                    forbiddenDrawButton.setText(forbiddenDrawMarks ? "[accent]Draw:[] mark" : "[accent]Draw:[] erase");
                 });
 
                 drawRow.button("New line", Styles.cleart, this::newForbiddenChain)
@@ -422,8 +486,13 @@ public class AutoRouteMod extends Mod{
     }
 
     private String optionsSummary(){
+        if(isPortrait()) return "[accent]Options[] +";
         String bridge = bridgesEnabled ? "B" : "-";
-        return "Options: " + oreMode.shortLabel + " / " + preference.shortLabel + " / " + bridge + " +";
+        return "[accent]Options:[] " + oreMode.shortLabel + " / " + preference.shortLabel + " / " + bridge + " +";
+    }
+
+    private boolean isPortrait(){
+        return Core.graphics.getHeight() > Core.graphics.getWidth();
     }
 
     private void addPanelDragListener(ImageButton moveButton){
@@ -521,6 +590,45 @@ public class AutoRouteMod extends Mod{
         );
     }
 
+    private void showToast(String message, float duration){
+        Vars.ui.showInfoToast(wrapToast(message), duration);
+    }
+
+    private String wrapToast(String message){
+        if(message == null || message.isEmpty() || !Vars.mobile || !isPortrait()) return message;
+
+        final int maxLineLength = 34;
+        StringBuilder output = new StringBuilder();
+        StringBuilder line = new StringBuilder();
+        String[] words = message.replace("\n", " ").trim().split("\\s+");
+
+        for(int i = 0; i < words.length; i++){
+            String word = words[i];
+            boolean wouldOverflow = line.length() > 0 && line.length() + 1 + word.length() > maxLineLength;
+            if(wouldOverflow){
+                if(output.length() > 0) output.append('\n');
+                output.append(line);
+                line.setLength(0);
+            }
+
+            if(line.length() > 0) line.append(' ');
+            line.append(word);
+
+            boolean sentenceEnd = word.endsWith(".") || word.endsWith("!") || word.endsWith("?");
+            if(sentenceEnd && i < words.length - 1 && line.length() >= 18){
+                if(output.length() > 0) output.append('\n');
+                output.append(line);
+                line.setLength(0);
+            }
+        }
+
+        if(line.length() > 0){
+            if(output.length() > 0) output.append('\n');
+            output.append(line);
+        }
+        return output.toString();
+    }
+
     private String statusText(){
         if(routeBlock == null) return "[accent]Auto Route[]";
         if(forbidMode){
@@ -554,7 +662,7 @@ public class AutoRouteMod extends Mod{
 
         Block selected = Vars.control.input.block;
         if(selected == null || !selected.conveyorPlacement || selected.size != 1){
-            Vars.ui.showInfoToast("Select a 1x1 conveyor or duct first, then tap the Auto Route icon.", 4f);
+            showToast("Select a 1x1 conveyor or duct first, then tap the Auto Route icon.", 4f);
             return;
         }
 
@@ -564,11 +672,16 @@ public class AutoRouteMod extends Mod{
         forbidMode = false;
         forbiddenAnchor = null;
         resetForbiddenStroke();
+
+        // Clear transient vanilla placement previews before snapshotting the
+        // real construction queue. Stale linePlans could make an identical
+        // Point A -> Point B route fail once and then work after reopening.
+        Vars.control.input.block = null;
+        Vars.control.input.linePlans.clear();
         refreshQueuedPlanSnapshot();
         routePanel.toFront();
 
-        Vars.control.input.block = null;
-        Vars.ui.showInfoToast("Tap Point A, then Point B. Add more taps for extra waypoints.", 4f);
+        showToast("Tap Point A, then Point B. Add more taps for extra waypoints.", 4f);
     }
 
     private void stopRouting(boolean restoreBlock){
@@ -605,7 +718,7 @@ public class AutoRouteMod extends Mod{
             oreMode = previous;
             Core.settings.put(oreModeSetting, oreMode.ordinal());
             recalculateAllSegments(true);
-            Vars.ui.showInfoToast("That ore mode leaves no valid route, so it was restored.", 4f);
+            showToast("That ore mode leaves no valid route, so it was restored.", 4f);
         }
         rebuildOptionsTable();
     }
@@ -620,7 +733,7 @@ public class AutoRouteMod extends Mod{
             preference = previous;
             Core.settings.put(preferenceSetting, preference.ordinal());
             recalculateAllSegments(true);
-            Vars.ui.showInfoToast("That route preference could not keep the current path.", 4f);
+            showToast("That route preference could not keep the current path.", 4f);
         }
         rebuildOptionsTable();
     }
@@ -635,7 +748,7 @@ public class AutoRouteMod extends Mod{
             bridgesEnabled = previous;
             Core.settings.put(bridgesSetting, bridgesEnabled);
             recalculateAllSegments(true);
-            Vars.ui.showInfoToast("The current route needs automatic bridges, so the setting was restored.", 4f);
+            showToast("The current route needs automatic bridges, so the setting was restored.", 4f);
         }
         rebuildOptionsTable();
     }
@@ -647,7 +760,11 @@ public class AutoRouteMod extends Mod{
         rebuildOptionsTable();
 
         if(forbidMode){
-            Vars.ui.showInfoToast("Tap points to draw connected forbidden lines, or hold and drag for freehand marking.", 5f);
+            showToast(Vars.mobile ?
+                "Tap points for connected lines. Quick-drag to move the map; hold for 350 ms, then drag to draw." :
+                "Tap points for connected lines, or click and drag for freehand marking.",
+                6f
+            );
         }
     }
 
@@ -745,7 +862,7 @@ public class AutoRouteMod extends Mod{
             forbiddenRevision++;
             pathCache.clear();
             recalculateAllSegments(true);
-            Vars.ui.showInfoToast(failureMessage, 4f);
+            showToast(failureMessage, 4f);
             return false;
         }
 
@@ -756,6 +873,10 @@ public class AutoRouteMod extends Mod{
         forbiddenStrokeActive = false;
         forbiddenStrokeDragged = false;
         forbiddenStrokePointer = -1;
+        forbiddenPointerPanning = false;
+        forbiddenPointerDownNanos = 0L;
+        forbiddenPointerStartScreenX = forbiddenPointerStartScreenY = 0;
+        forbiddenPointerLastScreenX = forbiddenPointerLastScreenY = 0;
         forbiddenStrokeStart = null;
         forbiddenStrokeLast = null;
         forbiddenStrokeChanges.clear();
@@ -788,17 +909,17 @@ public class AutoRouteMod extends Mod{
         if(!waypoints.isEmpty()){
             Point2 previous = waypoints.peek();
             if(previous.x == point.x && previous.y == point.y){
-                Vars.ui.showInfoToast("That tile is already the latest waypoint.", 2f);
+                showToast("That tile is already the latest waypoint.", 2f);
                 return;
             }
             if(routeKeys.contains(tileKey(point.x, point.y))){
-                Vars.ui.showInfoToast("That tile is already part of the current route.", 3f);
+                showToast("That tile is already part of the current route.", 3f);
                 return;
             }
         }
 
         if(!isEndpointUsable(point.x, point.y)){
-            Vars.ui.showInfoToast("That tile cannot be used as a route point.", 3f);
+            showToast("That tile cannot be used as a route point.", 3f);
             return;
         }
 
@@ -811,7 +932,7 @@ public class AutoRouteMod extends Mod{
         Point2 start = waypoints.peek();
         int distance = manhattan(start.x, start.y, point.x, point.y);
         if(distance > maxWaypointDistance()){
-            Vars.ui.showInfoToast(
+            showToast(
                 "That segment is very long (" + distance + " tiles). Add an intermediate waypoint to protect mobile performance.",
                 5f
             );
@@ -833,11 +954,11 @@ public class AutoRouteMod extends Mod{
 
     private void showPathFailureToast(){
         if(searchTimedOut){
-            Vars.ui.showInfoToast("Route calculation took too long. Add a closer waypoint or use a less restrictive option.", 5f);
+            showToast("Route calculation took too long. Add a closer waypoint or use a less restrictive option.", 5f);
         }else if(searchLimitHit){
-            Vars.ui.showInfoToast("Route search reached its safety limit. Add an intermediate waypoint.", 5f);
+            showToast("Route search reached its safety limit. Add an intermediate waypoint.", 5f);
         }else{
-            Vars.ui.showInfoToast(
+            showToast(
                 "No safe route was found. Try another waypoint, enable bridges, or change the ore/preference options.",
                 5f
             );
@@ -1030,24 +1151,24 @@ public class AutoRouteMod extends Mod{
     private void commitRoute(){
         if(routeBlock == null) return;
         if(waypoints.size < 2){
-            Vars.ui.showInfoToast("Tap Point B before building the route.", 3f);
+            showToast("Tap Point B before building the route.", 3f);
             return;
         }
         if(routePlans.isEmpty()){
-            Vars.ui.showInfoToast("There are no new blocks to queue for this route.", 3f);
+            showToast("There are no new blocks to queue for this route.", 3f);
             return;
         }
         if(Vars.player == null || Vars.player.unit() == null){
-            Vars.ui.showInfoToast("No player unit is available to build the route.", 3f);
+            showToast("No player unit is available to build the route.", 3f);
             return;
         }
 
         refreshQueuedPlanSnapshot();
         if(queuedPlanFingerprint != previewPlanFingerprint){
             if(recalculateAllSegments(false)){
-                Vars.ui.showInfoToast("Your build queue changed. The route was updated; review it and tap Build again.", 5f);
+                showToast("Your build queue changed. The route was updated; review it and tap Build again.", 5f);
             }else{
-                Vars.ui.showInfoToast("Your build queue changed and the old route is no longer valid.", 5f);
+                showToast("Your build queue changed and the old route is no longer valid.", 5f);
             }
             return;
         }
@@ -1057,12 +1178,12 @@ public class AutoRouteMod extends Mod{
         // preview was calculated.
         if(!allPlansUsable()){
             if(recalculateAllSegments(true) && allPlansUsable()){
-                Vars.ui.showInfoToast(
+                showToast(
                     "The map changed. The route was updated; review it and tap Build again.",
                     5f
                 );
             }else{
-                Vars.ui.showInfoToast("The route is no longer placeable.", 4f);
+                showToast("The route is no longer placeable.", 4f);
             }
             return;
         }
@@ -1076,7 +1197,7 @@ public class AutoRouteMod extends Mod{
         if(smartCrossings > 0) extras += " " + smartCrossings + " junction" + (smartCrossings == 1 ? "" : "s") + ".";
         if(smartBridges > 0) extras += " " + smartBridges + " bridge" + (smartBridges == 1 ? "" : "s") + ".";
 
-        Vars.ui.showInfoToast(
+        showToast(
             "Queued " + queued + " build plan" + (queued == 1 ? "." : "s.") + extras,
             4f
         );
@@ -1259,6 +1380,25 @@ public class AutoRouteMod extends Mod{
     }
 
     private PathResult findPath(Point2 start, Point2 goal){
+        searchRetryPass = false;
+        PathResult result = findPathAttempt(start, goal);
+
+        // A short automatic retry smooths over first-run JVM warm-up and rare
+        // mobile timing spikes. It only runs after a safety timeout/expansion
+        // limit, never after a genuinely impossible route.
+        if(result == null && (searchTimedOut || searchLimitHit) &&
+            manhattan(start.x, start.y, goal.x, goal.y) <= 250){
+            searchRetryPass = true;
+            searchTimedOut = false;
+            searchLimitHit = false;
+            result = findPathAttempt(start, goal);
+        }
+
+        searchRetryPass = false;
+        return result;
+    }
+
+    private PathResult findPathAttempt(Point2 start, Point2 goal){
         searchTimedOut = false;
         searchLimitHit = false;
 
@@ -1932,7 +2072,7 @@ public class AutoRouteMod extends Mod{
             int required = direction(path.points.get(0), path.points.get(1));
             int existingRotation = connectionRotation(start.x, start.y);
             if(existingRotation != required){
-                Vars.ui.showInfoToast(
+                showToast(
                     "The starting conveyor points another way. Use it as an end point, rotate it, or choose the tile in front of it.",
                     5f
                 );
@@ -1945,7 +2085,7 @@ public class AutoRouteMod extends Mod{
             int arrivalDirection = direction(path.points.get(path.points.size - 2), path.points.peek());
 
             if(!isValidConnectionArrival(goal.x, goal.y, arrivalDirection)){
-                Vars.ui.showInfoToast(
+                showToast(
                     requiresRearInput(target) ?
                         "That armored endpoint only accepts a straight rear connection." :
                         "That endpoint cannot accept a head-on connection. Connect from its rear or side.",
@@ -1968,15 +2108,9 @@ public class AutoRouteMod extends Mod{
             }
         }
 
-        if(Vars.control != null && Vars.control.input != null){
-            for(BuildPlan plan : Vars.control.input.linePlans){
-                fingerprint = addQueuedPlanSnapshot(plan, fingerprint);
-            }
-            for(BuildPlan plan : Vars.control.input.selectPlans){
-                fingerprint = addQueuedPlanSnapshot(plan, fingerprint);
-            }
-        }
-
+        // linePlans/selectPlans are temporary vanilla previews, not committed
+        // construction. Including stale entries here caused intermittent false
+        // "no route" results immediately after enabling Auto Route.
         queuedPlanFingerprint = fingerprint;
     }
 
@@ -2028,7 +2162,8 @@ public class AutoRouteMod extends Mod{
     }
 
     private int maxExpandedStates(){
-        return Vars.mobile ? mobileMaxExpandedStates : desktopMaxExpandedStates;
+        int base = Vars.mobile ? mobileMaxExpandedStates : desktopMaxExpandedStates;
+        return searchRetryPass ? Math.round(base * 1.5f) : base;
     }
 
     private int maxSearchCells(){
@@ -2040,7 +2175,9 @@ public class AutoRouteMod extends Mod{
     }
 
     private long searchBudgetNanos(){
-        return (Vars.mobile ? 220L : 550L) * 1_000_000L;
+        long millis = Vars.mobile ? 220L : 550L;
+        if(searchRetryPass) millis = Vars.mobile ? 480L : 900L;
+        return millis * 1_000_000L;
     }
 
     private String pathCacheKey(Point2 start, Point2 goal, boolean strictOre){
@@ -2083,9 +2220,9 @@ public class AutoRouteMod extends Mod{
     }
 
     private enum OreMode{
-        auto("Ore: automatic fallback", "Auto ore"),
-        avoid("Ore: never cross", "No ore"),
-        allow("Ore: allow with penalty", "Ore ok");
+        auto("[accent]Ore:[] automatic fallback", "Auto ore"),
+        avoid("[accent]Ore:[] never cross", "No ore"),
+        allow("[accent]Ore:[] allow with penalty", "Ore ok");
 
         final String label;
         final String shortLabel;
@@ -2105,9 +2242,9 @@ public class AutoRouteMod extends Mod{
     }
 
     private enum RoutePreference{
-        shortest("Route: shortest", "Short"),
-        straight("Route: straightest", "Straight"),
-        clean("Route: least interference", "Clean");
+        shortest("[accent]Route:[] shortest", "Short"),
+        straight("[accent]Route:[] straightest", "Straight"),
+        clean("[accent]Route:[] least interference", "Clean");
 
         final String label;
         final String shortLabel;

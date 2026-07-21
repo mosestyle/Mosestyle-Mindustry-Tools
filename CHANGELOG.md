@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- Improved the routing panel hierarchy with orange accent labels for Options, Ore, Route, Bridges, Forbidden tiles, and Draw mode.
+- Simplified the collapsed portrait toolbar to a compact **Options +** label so it no longer clips on narrow phone screens.
+- Added Android navigation while Forbidden tiles mode is active: quick-drag pans the map, while holding for 350 ms and then dragging draws or erases forbidden tiles.
+- Kept immediate click-and-drag forbidden drawing on desktop.
+- Added automatic portrait toast wrapping, including sentence-aware line breaks for instructions and error messages.
+- Fixed intermittent first-attempt route failures caused by stale vanilla `linePlans` being mistaken for occupied build plans.
+- Stopped treating temporary `linePlans` and `selectPlans` previews as committed construction; the real player build queue remains protected.
+- Added one bounded automatic pathfinding retry after a timeout or expansion-limit spike on reasonably short segments.
+
 ## 0.4.2
 
 - Fixed automatic bridges replacing simple one-tile perpendicular conveyor crossings.
