@@ -17,7 +17,15 @@ https://github.com/mosestyle/Mindustry-Auto-Route
 
 5. Restart Mindustry when prompted.
 
-## Version 0.7.0 highlights
+## Version 0.7.1 highlights
+
+### Isolated Item Bridge exits
+
+Mindustry's normal Item Bridge destination can dump items to several adjacent sides. Auto Route now checks those sides before selecting the bridge exit. If an unrelated conveyor, router, storage block, or other item receiver could receive the bridged material, that endpoint is rejected and the router searches for the next isolated endpoint. This keeps parallel lead, copper, and other resource lines separate while still using bridges where appropriate.
+
+### Movable and resizable items/units/time HUD
+
+The combined upper-right HUD now has a four-way move handle. Drag it anywhere on Android or desktop; portrait and landscape positions are remembered separately. **Settings → Auto Route → Items, units & time HUD width** adjusts the panel from narrow to wide, including the two-column item/unit grid and time-control row. Compact suffixes such as `k` use the orange accent color for better visibility.
 
 ### Auto Route settings page
 
@@ -28,6 +36,7 @@ Mindustry's main **Settings** menu now contains an **Auto Route** category. It i
 - **Unit counter display** — shows friendly unit types and their current counts.
 - **Time control** — enables the compact single-player speed control.
 - **Items, units & time HUD opacity** — adjusts the upper-right panel transparency.
+- **Items, units & time HUD width** — makes that movable panel narrower or wider.
 
 These options are kept out of the in-game routing panel, so enabling extra HUD tools does not make the route controls larger.
 
@@ -214,7 +223,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open **Actions** and wait for the build to finish.
-4. The workflow creates tag `v0.7.0`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
+4. The workflow creates tag `v0.7.1`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 

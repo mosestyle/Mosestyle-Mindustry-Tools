@@ -217,6 +217,12 @@ public class AutoRouteMod extends Mod{
                     if(hudExtras != null) hudExtras.onOpacityChanged();
                 }
             );
+            table.sliderPref(AutoRouteHudExtras.hudWidthSetting, 160, 130, 240, 10,
+                value -> value + " px",
+                value -> {
+                    if(hudExtras != null) hudExtras.onWidthChanged();
+                }
+            );
         });
     }
 
@@ -1710,6 +1716,13 @@ public class AutoRouteMod extends Mod{
             }
 
             int direction = direction(link.start, link.end);
+            if(spec.block instanceof ItemBridge &&
+                hasUnintendedItemBridgeOutputNeighbour(
+                    link.end.x, link.end.y, direction, null, intendedRouteOutputKey(link.end)
+                )){
+                return false;
+            }
+
             for(int step = 1; step < distance; step++){
                 int x = link.start.x + dirX[direction] * step;
                 int y = link.start.y + dirY[direction] * step;
@@ -2071,7 +2084,7 @@ public class AutoRouteMod extends Mod{
         boolean[] closed,
         PriorityQueue<SearchNode> open
     ){
-        if(!canPlaceBridgeEndpoint(x, y, bridgeDirection, start, goal, spec, strictOre)) return;
+        if(!canPlaceBridgeEndpoint(x, y, bridgeDirection, start, goal, spec, strictOre, false)) return;
 
         boolean hardObstacleSeen = false;
         boolean localizedInterferenceSeen = false;
@@ -2133,7 +2146,7 @@ public class AutoRouteMod extends Mod{
             boolean localizedOnly = localizedInterferenceSeen && !hardObstacleSeen && softCrossings < 2;
             boolean bridgeWorthwhile = localizedInterferenceSeen || hardObstacleSeen || softCrossings >= 2;
             if(!bridgeWorthwhile) continue;
-            if(!canPlaceBridgeEndpoint(endX, endY, bridgeDirection, start, goal, spec, strictOre)) continue;
+            if(!canPlaceBridgeEndpoint(endX, endY, bridgeDirection, start, goal, spec, strictOre, true)) continue;
 
             float step = distance + (localizedOnly ?
                 localizedInterferenceBridgePenalty(distance) : bridgePenalty());
@@ -2323,7 +2336,8 @@ public class AutoRouteMod extends Mod{
         Point2 start,
         Point2 goal,
         BridgeSpec spec,
-        boolean strictOre
+        boolean strictOre,
+        boolean destinationEndpoint
     ){
         Tile tile = Vars.world.tile(x, y);
         if(tile == null) return false;
@@ -2338,11 +2352,85 @@ public class AutoRouteMod extends Mod{
         if(isFedByExistingTransport(x, y) && !isIntentionalConnectionOutputTile(x, y) &&
             !(x == start.x && y == start.y) && !(x == goal.x && y == goal.y)) return false;
 
+        // A Serpulo Item Bridge destination can dump to every adjacent side except
+        // the side linked back to its source. If another item line sits beside the
+        // endpoint, the bridged resource may leak into that unrelated line. Reject
+        // that endpoint so bridge search continues to the next isolated tile.
+        if(destinationEndpoint && spec.block instanceof ItemBridge &&
+            hasUnintendedItemBridgeOutputNeighbour(x, y, rotation, goal, -1)) return false;
+
         // Do not silently replace a built structure to create a bridge endpoint.
         if(tile.build != null && tile.block() != spec.block) return false;
 
         return Build.validPlace(spec.block, Vars.player.team(), x, y, rotation) ||
             (tile.block() == spec.block && tile.team() == Vars.player.team());
+    }
+
+    /**
+     * ItemBridge endpoints are non-directional dumpers: with a valid link they may
+     * output to the forward and both side tiles. Keep the destination isolated
+     * from unrelated item receivers so parallel resource lines cannot mix.
+     */
+    private boolean hasUnintendedItemBridgeOutputNeighbour(
+        int x,
+        int y,
+        int bridgeDirection,
+        Point2 permittedGoal,
+        int permittedRouteOutputKey
+    ){
+        int linkedSourceDirection = Math.floorMod(bridgeDirection + 2, 4);
+
+        for(int direction = 0; direction < 4; direction++){
+            // The destination bridge never dumps back through its linked source side.
+            if(direction == linkedSourceDirection) continue;
+
+            int nearbyX = x + dirX[direction];
+            int nearbyY = y + dirY[direction];
+
+            // An explicitly selected existing transport endpoint is an intentional
+            // receiver and may sit directly after the bridge.
+            boolean permittedConnection = permittedGoal != null &&
+                nearbyX == permittedGoal.x && nearbyY == permittedGoal.y &&
+                isConnectionEndpoint(nearbyX, nearbyY);
+            if(!permittedConnection &&
+                connectionWaypointKeys.contains(tileKey(nearbyX, nearbyY)) &&
+                isConnectionEndpoint(nearbyX, nearbyY)){
+                permittedConnection = true;
+            }
+            if(permittedConnection) continue;
+
+            int nearbyKey = tileKey(nearbyX, nearbyY);
+            if(routeKeys.contains(nearbyKey) && nearbyKey != permittedRouteOutputKey){
+                return true;
+            }
+
+            Tile nearby = Vars.world.tile(nearbyX, nearbyY);
+            if(nearby != null && nearby.build != null &&
+                nearby.team() == Vars.player.team() && canReceiveUnintendedBridgeItems(nearby.block())){
+                return true;
+            }
+
+            BuildPlan planned = queuedPlansByKey.get(tileKey(nearbyX, nearbyY));
+            if(planned != null && canReceiveUnintendedBridgeItems(planned.block)){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canReceiveUnintendedBridgeItems(Block block){
+        return block != null && (block.hasItems || block.acceptsItems);
+    }
+
+    private int intendedRouteOutputKey(Point2 bridgeEnd){
+        for(int i = 0; i < routeTiles.size - 1; i++){
+            Point2 point = routeTiles.get(i);
+            if(point.x == bridgeEnd.x && point.y == bridgeEnd.y){
+                Point2 next = routeTiles.get(i + 1);
+                return tileKey(next.x, next.y);
+            }
+        }
+        return -1;
     }
 
     private boolean isExistingFriendlyTransport(Tile tile){

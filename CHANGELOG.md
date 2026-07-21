@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.1
+
+- Prevented Item Bridge exits from dumping one resource into a neighbouring parallel item line. Unsafe destination endpoints are skipped so the router extends, shifts, or reroutes the bridge to an isolated exit.
+- Added a four-way move handle to the combined core-items, unit-count, and time-control HUD.
+- Saved separate HUD positions for portrait and landscape layouts.
+- Added an **Items, units & time HUD width** slider in **Settings → Auto Route**.
+- Colored compact amount suffixes such as `k` with Mindustry's accent color for improved contrast.
+
 ## 0.7.0
 
 - Added an **Auto Route** category to Mindustry's main Settings menu.
