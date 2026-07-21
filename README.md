@@ -19,7 +19,7 @@ Repository: https://github.com/mosestyle/Mosestyle-Mindustry-Tools
 
 5. Restart Mindustry when prompted.
 
-## Version 0.8.3 highlights
+## Version 0.8.2 highlights
 
 ### Custom music player
 
@@ -34,7 +34,7 @@ Open **Settings → Mosestyle Tools** to configure the new custom player:
 - **Custom music volume**
 - **Mute official music automatically**
 
-Supported imported formats are **MP3, OGG Vorbis, WAV, and FLAC**. On Android, **Import music** opens a multi-file audio picker and imports every selected song. The original document filename is preserved when Android provides it, and the selected files are copied into a private Mosestyle library so they remain available without repeatedly granting document access. On desktop, **Open music folder** opens the private library directory directly.
+Supported imported formats are **MP3, OGG Vorbis, WAV, and FLAC**. On Android, **Import music** uses Mindustry's multi-file picker. Selected files are copied into a private Mosestyle library, so they remain available without repeatedly granting document access. On desktop, **Open music folder** opens the private library directory directly.
 
 The movable in-game player contains:
 
@@ -46,7 +46,7 @@ Volume ─────●──── 75%
 
 The custom volume is independent from Mindustry's normal soundtrack volume. When **Mute official music automatically** is enabled, the mod temporarily sets the official music volume to zero only while the custom player has an active track, then restores the player's previous official volume when custom playback is disabled or the game exits normally.
 
-The music-library manager can play a chosen track directly, remove individual tracks, refresh after desktop files are copied into the folder, or clear the complete imported library. Undecodable files are skipped automatically instead of stopping the playlist.
+The music-library manager can remove individual tracks, refresh after desktop files are copied into the folder, or clear the complete imported library. Undecodable files are skipped automatically instead of stopping the playlist.
 
 ## Version 0.7.4 highlights
 
@@ -279,7 +279,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open **Actions** and wait for the build to finish.
-4. The workflow creates tag `v0.8.3`, creates the GitHub Release, and attaches `MosestyleMindustryTools.jar`.
+4. The workflow creates tag `v0.8.2`, creates the GitHub Release, and attaches `MosestyleMindustryTools.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 

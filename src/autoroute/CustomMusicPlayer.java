@@ -691,23 +691,34 @@ public class CustomMusicPlayer{
         rebuild.run();
 
         dialog.cont.pane(trackList).grow().maxWidth(620f);
-        dialog.buttons.defaults().height(54f).pad(2f);
-        dialog.buttons.button("Import music", Icon.download, () -> {
+
+        // Keep every library action on one line on narrow Android displays.
+        // A fixed two-column layout prevents labels such as "Refresh" and
+        // "Remove all" from wrapping vertically inside undersized cells.
+        float actionWidth = Vars.mobile ? 136f : 166f;
+        dialog.buttons.defaults().height(54f).pad(3f);
+
+        TextButton importButton = dialog.buttons.button("Import music", Icon.download, () -> {
             dialog.hide();
             importMusic();
-        });
+        }).width(actionWidth).get();
+        importButton.getLabel().setWrap(false);
 
-        if(Core.app.isDesktop()){
-            dialog.buttons.button("Open folder", Icon.folder, this::openMusicFolder);
-        }
-
-        dialog.buttons.button("Refresh", () -> {
+        TextButton refreshButton = dialog.buttons.button("Refresh", () -> {
             scanLibrary();
             rebuild.run();
-        });
+        }).width(actionWidth).get();
+        refreshButton.getLabel().setWrap(false);
         dialog.buttons.row();
 
-        dialog.buttons.button("Remove all", Icon.trash, () -> {
+        if(Core.app.isDesktop()){
+            TextButton openFolderButton = dialog.buttons.button("Open folder", Icon.folder, this::openMusicFolder)
+                .width(actionWidth)
+                .get();
+            openFolderButton.getLabel().setWrap(false);
+        }
+
+        TextButton removeAllButton = dialog.buttons.button("Remove all", Icon.trash, () -> {
             if(tracks.isEmpty()) return;
             Vars.ui.showConfirm("Remove imported music", "Remove every imported track?", () -> {
                 stopAndDisposeCurrent();
@@ -716,8 +727,16 @@ public class CustomMusicPlayer{
                 applyOfficialMusicMuteState();
                 rebuild.run();
             });
-        });
-        dialog.addCloseButton();
+        }).width(actionWidth).get();
+        removeAllButton.getLabel().setWrap(false);
+
+        if(Core.app.isDesktop()) dialog.buttons.row();
+
+        TextButton backButton = dialog.buttons.button("Back", Icon.left, dialog::hide)
+            .width(Core.app.isDesktop() ? actionWidth * 2f + 6f : actionWidth)
+            .get();
+        backButton.getLabel().setWrap(false);
+
         dialog.show();
     }
 

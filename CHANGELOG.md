@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.4
+
+- Fixed the Custom Music Library action labels wrapping vertically on narrow Android screens.
+- Gave Import music, Refresh, Remove all, Open folder, and Back fixed one-line button widths.
+- Reorganized the library actions into a predictable two-column mobile-friendly layout.
+
 ## 0.8.3
 
 - Preserved Android document display names when importing music, so new tracks use their real filenames instead of generic `track-1` names.
