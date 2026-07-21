@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1
+
+- Removed the live resource-cost preview to reduce the mobile panel footprint.
+- Added a collapsible panel with a compact bar that keeps route status and Build available.
+- Added semi-transparent idle panel rendering; touching or hovering restores full opacity.
+- Saved the collapsed/expanded panel state between launches.
+- Generalized drill safety into item-output safety for routers, distribution gates, unloaders, factories, and compatible modded blocks.
+- Automatic routes now detour or use a bridge across unsafe output-adjacent tiles, while explicit endpoint connections remain possible.
+
 ## 0.6.0
 
 - Added a live build and resource-cost preview before committing a route.

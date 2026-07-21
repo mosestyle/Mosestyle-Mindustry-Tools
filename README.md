@@ -17,18 +17,31 @@ https://github.com/mosestyle/Mindustry-Auto-Route
 
 5. Restart Mindustry when prompted.
 
-## Version 0.6.0 highlights
+## Version 0.6.1 highlights
 
-### Live resource-cost preview
+### Compact collapsible panel
 
-After Point A and Point B have produced a route, the panel shows what the preview requires before you press **Build**:
+The resource-cost preview has been removed to keep the panel small on phones.
 
-- normal conveyors, ducts, or conduits;
-- automatic Junction or Liquid Junction replacements;
-- bridge spans and the number of bridge endpoints;
-- total construction items such as Copper, Lead, Titanium, or Beryllium.
+The routing panel now has a **- / +** control in its header:
 
-Resource totals follow the loaded world's normal build-cost multiplier. The totals update immediately when you add, undo, or move a waypoint, change route preferences, enable/disable bridges, or edit forbidden tiles.
+- tap **-** to collapse the full menu into a compact bar;
+- the compact bar keeps the move handle, route status, **Build**, expand, and close controls;
+- tap **+** to restore Undo, Clear, Options, Edit route, Bridges, and Forbidden tiles;
+- the panel is semi-transparent while idle so the map remains visible underneath;
+- touching or hovering the panel temporarily restores full opacity;
+- the collapsed state is remembered between game launches.
+
+### Safer item-output avoidance
+
+Item routes now avoid ordinary conveyor tiles beside unintended item-output buildings, including:
+
+- drills;
+- routers, sorters, overflow/underflow gates, and unloaders;
+- item-producing factories;
+- compatible modded distribution or factory blocks.
+
+An explicit Point A or Point B may still be placed beside one of these blocks when the connection is intentional. With automatic bridges enabled, the router may bridge across the unsafe output area or choose a clean detour, while keeping the bridge endpoints outside the contamination zone.
 
 ### Liquid conduit routing
 
@@ -62,10 +75,12 @@ If the moved point cannot produce a valid route, its previous position and route
 2. Tap the Auto Route icon at the top-right of the HUD.
 3. Tap Point A and Point B.
 4. Add extra waypoints to control the general shape.
-5. Review the route and resource-cost preview.
+5. Review the route preview.
 6. Tap **Build** to add the plans to Mindustry's normal construction queue.
 
 Use **Undo** to remove the newest waypoint and **Clear** to reset the route. Hold the four-way handle to move the panel. Portrait and landscape positions are remembered separately.
+
+Tap **-** to collapse the panel into a compact semi-transparent bar. The compact bar still includes **Build**. Tap **+** to expand it again.
 
 ## Automatic Junctions and bridges
 
@@ -128,9 +143,11 @@ Auto Route reads the local player's committed construction queue:
 - if the queue changes after previewing, Auto Route recalculates and asks you to review the updated route;
 - route commits are all-or-nothing, including bridge pairs.
 
-## Item-route drill safety
+## Item-output safety
 
-Automatically selected item conveyors and ducts are not placed directly beside drills, preventing unrelated drills from dumping resources into the new line. Explicit waypoints beside drills remain allowed. Liquid conduits do not need this restriction.
+Automatically selected item conveyors and ducts are not placed directly beside unintended output buildings such as drills, routers, distribution gates, unloaders, and item-producing factories. This prevents unrelated items from leaking into the new line.
+
+Explicit waypoints beside these buildings remain allowed for intentional connections. Liquid conduits do not need this item-contamination restriction.
 
 ## Performance protection
 
@@ -149,7 +166,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open **Actions** and wait for the build to finish.
-4. The workflow creates tag `v0.6.0`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
+4. The workflow creates tag `v0.6.1`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 

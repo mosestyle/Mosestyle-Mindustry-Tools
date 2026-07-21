@@ -9,7 +9,6 @@ import arc.scene.event.InputEvent;
 import arc.scene.event.InputListener;
 import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.ImageButton;
-import arc.scene.ui.Label;
 import arc.scene.ui.TextButton;
 import arc.scene.ui.layout.Table;
 import arc.struct.IntSet;
@@ -21,8 +20,6 @@ import mindustry.game.EventType;
 import mindustry.graphics.Drawf;
 import mindustry.graphics.Pal;
 import mindustry.mod.Mod;
-import mindustry.type.Item;
-import mindustry.type.ItemStack;
 import mindustry.ui.Styles;
 import mindustry.world.Block;
 import mindustry.world.Build;
@@ -32,12 +29,11 @@ import mindustry.world.blocks.distribution.DirectionBridge;
 import mindustry.world.blocks.distribution.Duct;
 import mindustry.world.blocks.distribution.ItemBridge;
 import mindustry.world.blocks.liquid.Conduit;
+import mindustry.type.Category;
 import mindustry.world.meta.BlockFlag;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.PriorityQueue;
 
 /**
@@ -46,7 +42,7 @@ import java.util.PriorityQueue;
  * Features:
  * - smart A* routing with route preferences;
  * - conveyor, duct, and liquid conduit routing;
- * - live block/resource cost preview;
+ * - collapsible semi-transparent mobile panel;
  * - tap-to-select waypoint editing;
  * - automatic ore fallback;
  * - junction and bridge crossings;
@@ -78,6 +74,7 @@ public class AutoRouteMod extends Mod{
     private static final String preferenceSetting = "mindustry-auto-route-preference";
     private static final String bridgesSetting = "mindustry-auto-route-bridges";
     private static final String panelSettingPrefix = "mindustry-auto-route-panel-";
+    private static final String panelCollapsedSetting = "mindustry-auto-route-panel-collapsed";
 
     private final Seq<Point2> waypoints = new Seq<>();
     private final Seq<PathResult> segments = new Seq<>();
@@ -102,6 +99,7 @@ public class AutoRouteMod extends Mod{
     private boolean forbiddenStrokeActive;
     private boolean forbiddenStrokeDragged;
     private boolean optionsExpanded;
+    private boolean panelCollapsed;
     private boolean bridgesEnabled = true;
     private boolean editMode;
     private boolean searchTimedOut;
@@ -139,6 +137,7 @@ public class AutoRouteMod extends Mod{
     private TextButton bridgeButton;
     private TextButton editButton;
     private TextButton optionsButton;
+    private TextButton collapseButton;
     private Table optionsTable;
     private Table routePanel;
 
@@ -180,6 +179,7 @@ public class AutoRouteMod extends Mod{
             RoutePreference.clean.ordinal()
         ));
         bridgesEnabled = Core.settings.getBool(bridgesSetting, true);
+        panelCollapsed = Core.settings.getBool(panelCollapsedSetting, false);
     }
 
     private void installForbiddenInput(){
@@ -367,67 +367,102 @@ public class AutoRouteMod extends Mod{
     private void buildMovableRoutePanel(){
         routePanel = new Table(Styles.black6);
         routePanel.margin(5f);
+        rebuildRoutePanel();
 
+        routePanel.visible(() -> active && !Vars.state.isMenu());
+        routePanel.update(this::updateRoutePanel);
+        Vars.ui.hudGroup.addChild(routePanel);
+    }
+
+    private void updateRoutePanel(){
+        updatePanelPlacement();
+
+        // Keep the map visible underneath the panel. Touching or hovering it
+        // restores full opacity, while the collapsed bar is even lighter.
+        float idleAlpha = panelCollapsed ? 0.70f : 0.86f;
+        routePanel.color.a = routePanel.hasMouse() ? 1f : idleAlpha;
+    }
+
+    private void rebuildRoutePanel(){
+        if(routePanel == null) return;
+
+        boolean preserveTop = routePanel.getWidth() > 0f && routePanel.getHeight() > 0f;
+        float oldX = routePanel.x;
+        float oldTop = routePanel.getTop();
+
+        routePanel.clearChildren();
+        routePanel.margin(5f);
+        optionsButton = null;
+        optionsTable = null;
+
+        Table header = new Table();
         TextureRegionDrawable moveIcon = new TextureRegionDrawable(
             Core.atlas.find("mindustry-auto-route-move")
         );
 
-        ImageButton moveButton = routePanel.button(moveIcon, Styles.defaulti, () -> {})
+        ImageButton moveButton = header.button(moveIcon, Styles.defaulti, () -> {})
             .size(42f)
             .get();
         moveButton.resizeImage(23f);
         addPanelDragListener(moveButton);
 
-        routePanel.label(this::statusText)
-            .width(Vars.mobile ? 138f : 205f)
+        header.label(this::statusText)
+            .width(Vars.mobile ? (panelCollapsed ? 112f : 138f) : (panelCollapsed ? 170f : 205f))
             .left()
             .padLeft(5f)
             .padRight(4f);
 
-        routePanel.button("X", Styles.cleart, () -> stopRouting(true))
+        header.button("Build", Styles.defaultt, this::commitRoute)
+            .size(panelCollapsed ? 68f : 74f, 42f);
+
+        collapseButton = header.button(panelCollapsed ? "+" : "-", Styles.cleart, this::togglePanelCollapsed)
+            .size(42f)
+            .get();
+
+        header.button("X", Styles.cleart, () -> stopRouting(true))
             .size(42f);
 
-        routePanel.row();
+        routePanel.add(header).growX();
 
-        routePanel.button("Undo", Styles.cleart, this::undoWaypoint)
-            .size(82f, 44f);
+        if(!panelCollapsed){
+            routePanel.row();
 
-        routePanel.button("Clear", Styles.cleart, this::clearRoute)
-            .size(82f, 44f);
+            Table actions = new Table();
+            actions.button("Undo", Styles.cleart, this::undoWaypoint)
+                .width(123f)
+                .height(44f);
+            actions.button("Clear", Styles.cleart, this::clearRoute)
+                .width(123f)
+                .height(44f);
+            routePanel.add(actions).growX();
 
-        routePanel.button("Build", Styles.defaultt, this::commitRoute)
-            .size(82f, 44f);
+            routePanel.row();
+            optionsButton = routePanel.button("[accent]Options[] +", Styles.cleart, this::toggleOptions)
+                .growX()
+                .height(40f)
+                .padTop(2f)
+                .get();
 
-        routePanel.row();
-
-        Label costLabel = routePanel.label(this::costPreviewText)
-            .colspan(3)
-            .width(Vars.mobile ? 260f : 340f)
-            .left()
-            .padTop(3f)
-            .padBottom(2f)
-            .get();
-        costLabel.setWrap(true);
-
-        routePanel.row();
-
-        optionsButton = routePanel.button("[accent]Options[] +", Styles.cleart, this::toggleOptions)
-            .colspan(3)
-            .growX()
-            .height(40f)
-            .padTop(2f)
-            .get();
-
-        routePanel.row();
-        optionsTable = new Table();
-        routePanel.add(optionsTable).colspan(3).growX();
-        rebuildOptionsTable();
+            routePanel.row();
+            optionsTable = new Table();
+            routePanel.add(optionsTable).growX();
+            rebuildOptionsTableContents();
+        }
 
         routePanel.pack();
-        routePanel.visible(() -> active && !Vars.state.isMenu());
-        routePanel.update(this::updatePanelPlacement);
-        Vars.ui.hudGroup.addChild(routePanel);
+        if(preserveTop){
+            routePanel.setPosition(oldX, oldTop - routePanel.getHeight());
+        }
+        clampPanelToScreen();
     }
+
+    private void togglePanelCollapsed(){
+        panelCollapsed = !panelCollapsed;
+        Core.settings.put(panelCollapsedSetting, panelCollapsed);
+        rebuildRoutePanel();
+        savePanelPosition();
+    }
+
 
     private void toggleOptions(){
         optionsExpanded = !optionsExpanded;
@@ -435,7 +470,14 @@ public class AutoRouteMod extends Mod{
     }
 
     private void rebuildOptionsTable(){
-        if(optionsTable == null) return;
+        if(optionsTable == null || optionsButton == null) return;
+        rebuildOptionsTableContents();
+        routePanel.pack();
+        clampPanelToScreen();
+    }
+
+    private void rebuildOptionsTableContents(){
+        if(optionsTable == null || optionsButton == null) return;
 
         optionsTable.clearChildren();
         optionsButton.setText(optionsExpanded ? "[accent]Options[] -" : optionsSummary());
@@ -522,10 +564,8 @@ public class AutoRouteMod extends Mod{
                 optionsTable.add(drawRow).growX();
             }
         }
-
-        routePanel.pack();
-        clampPanelToScreen();
     }
+
 
     private String optionsSummary(){
         if(isPortrait()) return "[accent]Options[] +";
@@ -674,70 +714,6 @@ public class AutoRouteMod extends Mod{
     private boolean isSupportedRouteBlock(Block block){
         return block != null && block.size == 1 && block.conveyorPlacement &&
             (block instanceof Conveyor || block instanceof Duct || block instanceof Conduit);
-    }
-
-    private String costPreviewText(){
-        if(routeBlock == null || waypoints.size < 2 || routePlans.isEmpty()) return "";
-
-        Block junction = junctionReplacement();
-        BridgeSpec bridge = bridgeSpec();
-        int transportBlocks = 0;
-        int junctionBlocks = 0;
-        int bridgeEndpoints = 0;
-        int otherBlocks = 0;
-        LinkedHashMap<Item, Integer> itemCosts = new LinkedHashMap<>();
-
-        for(BuildPlan plan : routePlans){
-            if(plan.block == routeBlock){
-                transportBlocks++;
-            }else if(junction != null && plan.block == junction){
-                junctionBlocks++;
-            }else if(bridge != null && plan.block == bridge.block){
-                bridgeEndpoints++;
-            }else{
-                otherBlocks++;
-            }
-
-            ItemStack[] requirements = plan.block == null ? null : plan.block.requirements;
-            if(requirements != null){
-                for(ItemStack stack : requirements){
-                    if(stack == null || stack.item == null || stack.amount <= 0) continue;
-                    int scaledAmount = Math.round(Vars.state.rules.buildCostMultiplier * stack.amount);
-                    if(scaledAmount <= 0) continue;
-                    Integer current = itemCosts.get(stack.item);
-                    itemCosts.put(stack.item, (current == null ? 0 : current) + scaledAmount);
-                }
-            }
-        }
-
-        StringBuilder blocks = new StringBuilder("[accent]Build preview:[] ");
-        appendCount(blocks, transportBlocks, routeBlock.localizedName);
-        appendCount(blocks, junctionBlocks, junction == null ? "Junction" : junction.localizedName);
-        if(smartBridges > 0){
-            if(blocks.charAt(blocks.length() - 1) != ' ') blocks.append(" • ");
-            blocks.append(smartBridges).append(smartBridges == 1 ? " bridge span" : " bridge spans")
-                .append(" (").append(bridgeEndpoints).append(" endpoints)");
-        }else{
-            appendCount(blocks, bridgeEndpoints, bridge == null ? "Bridge" : bridge.block.localizedName);
-        }
-        appendCount(blocks, otherBlocks, "other block");
-
-        if(itemCosts.isEmpty()) return blocks.toString();
-
-        StringBuilder resources = new StringBuilder("\n[accent]Resources:[] ");
-        boolean first = true;
-        for(Map.Entry<Item, Integer> entry : itemCosts.entrySet()){
-            if(!first) resources.append(" • ");
-            resources.append(entry.getKey().localizedName).append(" ").append(entry.getValue());
-            first = false;
-        }
-        return blocks.append(resources).toString();
-    }
-
-    private void appendCount(StringBuilder builder, int amount, String name){
-        if(amount <= 0) return;
-        if(builder.charAt(builder.length() - 1) != ' ') builder.append(" • ");
-        builder.append(amount).append(" ").append(name);
     }
 
     private String statusText(){
@@ -1467,12 +1443,12 @@ public class AutoRouteMod extends Mod{
         int key = tileKey(plan.x, plan.y);
         if(forbiddenKeys.contains(key)) return false;
 
-        // Re-check merge/drill safety immediately before building. Explicit
+        // Re-check accidental item-feed safety immediately before building. Explicit
         // waypoints are intentional exceptions, and Junction replacements are
         // expected to occupy an existing transport crossing.
         Block junction = junctionReplacement();
         if(!waypointKeys.contains(key) && plan.block != junction &&
-            (isBesideDrill(plan.x, plan.y) ||
+            (isBesideUnintendedItemOutput(plan.x, plan.y) ||
                 (isFedByExistingTransport(plan.x, plan.y) &&
                     !isIntentionalConnectionOutputTile(plan.x, plan.y)))){
             return false;
@@ -2068,7 +2044,7 @@ public class AutoRouteMod extends Mod{
         if(forbiddenKeys.contains(key)) return false;
         if(routeKeys.contains(key) && !isStart && !isGoal) return false;
         if(strictOre && !isGoal && tile.drop() != null) return false;
-        if(!isStart && !isGoal && isBesideDrill(x, y)) return false;
+        if(!isStart && !isGoal && isBesideUnintendedItemOutput(x, y)) return false;
 
         BuildPlan queued = queuedPlansByKey.get(key);
         if(queued != null && !isStart && !isGoal) return false;
@@ -2117,7 +2093,7 @@ public class AutoRouteMod extends Mod{
         if(forbiddenKeys.contains(key) || queuedPlansByKey.containsKey(key)) return 2;
         if(strictOre && tile.drop() != null) return 2;
         if(routeKeys.contains(key) && !(x == start.x && y == start.y)) return 2;
-        if(isBesideDrill(x, y)) return 2;
+        if(isBesideUnintendedItemOutput(x, y)) return 2;
 
         // A connected transport line normally has another transport block feeding it. Test
         // whether it can become a Junction first; otherwise the generic feed
@@ -2151,7 +2127,7 @@ public class AutoRouteMod extends Mod{
         if(strictOre && tile.drop() != null &&
             !(x == start.x && y == start.y) && !(x == goal.x && y == goal.y)) return false;
         if(isConnectionEndpoint(x, y)) return false;
-        if(isBesideDrill(x, y) && !(x == start.x && y == start.y) && !(x == goal.x && y == goal.y)) return false;
+        if(isBesideUnintendedItemOutput(x, y) && !(x == start.x && y == start.y) && !(x == goal.x && y == goal.y)) return false;
         if(isFedByExistingTransport(x, y) && !isIntentionalConnectionOutputTile(x, y) &&
             !(x == start.x && y == start.y) && !(x == goal.x && y == goal.y)) return false;
 
@@ -2248,20 +2224,52 @@ public class AutoRouteMod extends Mod{
         return null;
     }
 
-    private boolean isBesideDrill(int x, int y){
-        // Drills output items, so they are only a contamination hazard for
-        // conveyor/duct routes. Liquid conduits may safely pass beside them.
+    private boolean isBesideUnintendedItemOutput(int x, int y){
+        // Liquid routes cannot be contaminated by item-output buildings.
         if(routeBlock instanceof Conduit) return false;
 
         for(int direction = 0; direction < 4; direction++){
-            Tile nearby = Vars.world.tile(x + dirX[direction], y + dirY[direction]);
-            if(nearby == null) continue;
+            int nearbyX = x + dirX[direction];
+            int nearbyY = y + dirY[direction];
+            Tile nearby = Vars.world.tile(nearbyX, nearbyY);
 
-            Block block = nearby.block();
-            if(block.flags.contains(BlockFlag.drill)) return true;
+            if(nearby != null && nearby.build != null && nearby.team() == Vars.player.team()){
+                Block block = nearby.block();
+
+                // Compatible conveyors/ducts are handled directionally by the
+                // existing-line and Junction rules instead of this broad check.
+                if(!isCompatibleTransport(block) && canUnintentionallyOutputItems(block)){
+                    return true;
+                }
+            }
+
+            BuildPlan planned = queuedPlansByKey.get(tileKey(nearbyX, nearbyY));
+            if(planned != null && planned.block != null &&
+                !isCompatibleTransport(planned.block) && canUnintentionallyOutputItems(planned.block)){
+                return true;
+            }
         }
         return false;
     }
+
+    private boolean canUnintentionallyOutputItems(Block block){
+        if(block == null || !block.outputsItems()) return false;
+
+        // Junctions and the selected family's bridge preserve an existing line
+        // rather than spraying items into every adjacent transport tile.
+        Block junction = junctionReplacement();
+        BridgeSpec bridge = bridgeSpec();
+        if(block == junction || (bridge != null && block == bridge.block)) return false;
+
+        // Drills and factories can dump products into adjacent item transport.
+        // Distribution blocks cover routers, sorters, overflow gates, unloaders,
+        // item bridges and similar modded distribution blocks. This is kept
+        // separate from compatible conveyors/ducts above to preserve Junctions.
+        return block.flags.contains(BlockFlag.drill) ||
+            block.flags.contains(BlockFlag.factory) ||
+            block.category == Category.distribution;
+    }
+
 
     private boolean isConnectionEndpoint(int x, int y){
         Tile tile = Vars.world.tile(x, y);
