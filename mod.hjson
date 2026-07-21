@@ -2,7 +2,7 @@ displayName: "Auto Route"
 name: "mindustry-auto-route"
 author: "Mosestyle"
 main: "autoroute.AutoRouteMod"
-description: "Smart waypoint routing for conveyors, ducts, and liquid conduits with editable waypoints, junctions, bridges, ore fallback, and forbidden areas."
-version: "0.6.4"
+description: "Smart waypoint routing for item and liquid lines, plus optional compact core items, unit counters, and x1-x256 single-player time control."
+version: "0.7.0"
 minGameVersion: 159
 java: true

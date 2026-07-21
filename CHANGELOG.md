@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0
+
+- Added an **Auto Route** category to Mindustry's main Settings menu.
+- Added independent settings for the compact route panel, core-items HUD, unit-count HUD, and time control.
+- Added a HUD opacity slider for the combined items, units, and time panel.
+- Added a compact upper-right core-items display with two entries per row.
+- Added a compact friendly-unit counter using the same two-column layout.
+- Added Better Vanilla-style left/right time controls with x1, x2, x4, x8, x16, x32, x64, x128, and x256 speeds.
+- Kept time control single-player only to avoid multiplayer desynchronization.
+- Added an optional full single-column route-panel layout while retaining compact mode as the default.
+- Added setting names and descriptions through the mod bundle.
+
 ## 0.6.4
 
 - Widened the compact Android panel so action and option labels no longer wrap unnecessarily.

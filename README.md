@@ -17,22 +17,54 @@ https://github.com/mosestyle/Mindustry-Auto-Route
 
 5. Restart Mindustry when prompted.
 
-## Version 0.6.4 highlights
+## Version 0.7.0 highlights
 
-### Compact two-column mobile UI
+### Auto Route settings page
 
-The expanded Auto Route panel has been redesigned for phones:
+Mindustry's main **Settings** menu now contains an **Auto Route** category. It includes:
 
-- a narrower 248px portrait layout;
-- smaller header, action, and option controls;
-- **Build** moved to the action row so the header is less crowded;
-- options are shown in a two-column grid instead of one tall list;
-- shorter labels such as **Ore: Auto**, **Route: Clean**, and **Bridge: Auto**;
-- compact route status such as `4 pts • 18 tiles • 1J • 1B`;
-- automatic relayout when rotating between portrait and landscape;
-- the existing collapse button and semi-transparent idle behavior are retained.
+- **Compact route panel** — enabled by default; disable it for a wider single-column option list.
+- **Core items display** — shows the resources stored in your team's core.
+- **Unit counter display** — shows friendly unit types and their current counts.
+- **Time control** — enables the compact single-player speed control.
+- **Items, units & time HUD opacity** — adjusts the upper-right panel transparency.
 
-This keeps every routing control available while using much less vertical space.
+These options are kept out of the in-game routing panel, so enabling extra HUD tools does not make the route controls larger.
+
+### Compact upper-right items and units HUD
+
+Core resources and friendly units are displayed in one small upper-right panel:
+
+- two entries per row;
+- item or unit icon followed by its compact amount;
+- only resources and unit types currently present are shown;
+- item and unit sections can be enabled independently;
+- the panel hides with the normal HUD and minimap;
+- adjustable opacity through **Settings → Auto Route**.
+
+If Mindustry's normal desktop **Display Core Items** option is also enabled, disable either that option or Auto Route's core-items display to avoid duplicate information.
+
+### Better Vanilla-style time control up to x256
+
+A compact arrow control appears below the items/units panel:
+
+```text
+[←]  x1  [→]
+```
+
+The right arrow cycles upward through:
+
+```text
+x1 → x2 → x4 → x8 → x16 → x32 → x64 → x128 → x256
+```
+
+The left arrow steps back down, and tapping the speed label resets to `x1`. It is positioned near the upper-right instead of the bottom-left, so it does not cover the mobile Command interface.
+
+Time scaling is intentionally limited to single-player. Attempting to change it while connected to multiplayer shows a warning instead of risking simulation desynchronization.
+
+### Compact and full route-panel layouts
+
+The improved two-column route panel remains the default. Players who prefer the older list layout can disable **Compact route panel** in **Settings → Auto Route**. The full version uses a wider, left-aligned single-column list while keeping the collapse and semi-transparent behavior.
 
 ### Local contamination bridges
 
@@ -182,7 +214,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open **Actions** and wait for the build to finish.
-4. The workflow creates tag `v0.6.4`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
+4. The workflow creates tag `v0.7.0`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 
@@ -219,6 +251,10 @@ build/libs/MindustryAutoRoute.jar
 - Auto Route does not place sorters, overflow gates, liquid routers, unloaders, or item routers because these alter distribution behavior rather than simply preserving a line.
 - Forbidden tiles are currently session-based and clear when the world changes.
 - Multiplayer servers may impose block bans or placement limits; final construction remains subject to normal Mindustry validation.
+
+## Credits
+
+The optional HUD concepts were inspired by the open-source **Better Vanilla** core/unit display and time-control UI, and by the original open-source **TimeControl** mod. Auto Route uses its own compact two-column layout and single-player implementation.
 
 ## License
 

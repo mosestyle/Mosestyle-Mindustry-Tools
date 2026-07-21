@@ -49,7 +49,8 @@ import java.util.PriorityQueue;
  * - player-marked forbidden tiles;
  * - awareness of existing local build plans;
  * - intentional connections to existing transport endpoints;
- * - mobile-oriented search limits and cached path results.
+ * - mobile-oriented search limits and cached path results;
+ * - optional compact core-item, unit-count, and time-control HUD.
  */
 public class AutoRouteMod extends Mod{
     private static final int[] dirX = {1, 0, -1, 0};
@@ -75,6 +76,7 @@ public class AutoRouteMod extends Mod{
     private static final String bridgesSetting = "mindustry-auto-route-bridges";
     private static final String panelSettingPrefix = "mindustry-auto-route-panel-";
     private static final String panelCollapsedSetting = "mindustry-auto-route-panel-collapsed";
+    private static final String compactPanelSetting = "mindustry-auto-route-panel-compact";
 
     private final Seq<Point2> waypoints = new Seq<>();
     private final Seq<PathResult> segments = new Seq<>();
@@ -100,6 +102,7 @@ public class AutoRouteMod extends Mod{
     private boolean forbiddenStrokeDragged;
     private boolean optionsExpanded;
     private boolean panelCollapsed;
+    private boolean compactPanelLayout = true;
     private boolean bridgesEnabled = true;
     private boolean editMode;
     private boolean searchTimedOut;
@@ -140,6 +143,7 @@ public class AutoRouteMod extends Mod{
     private TextButton collapseButton;
     private Table optionsTable;
     private Table routePanel;
+    private AutoRouteHudExtras hudExtras;
 
     private boolean panelPositionReady;
     private boolean panelLayoutPortrait;
@@ -149,7 +153,10 @@ public class AutoRouteMod extends Mod{
     @Override
     public void init(){
         loadSettings();
+        buildSettingsMenu();
         buildHud();
+        hudExtras = new AutoRouteHudExtras();
+        hudExtras.init();
         installForbiddenInput();
 
         Events.on(EventType.TapEvent.class, event -> {
@@ -181,6 +188,36 @@ public class AutoRouteMod extends Mod{
         ));
         bridgesEnabled = Core.settings.getBool(bridgesSetting, true);
         panelCollapsed = Core.settings.getBool(panelCollapsedSetting, false);
+        compactPanelLayout = Core.settings.getBool(compactPanelSetting, true);
+    }
+
+    private void buildSettingsMenu(){
+        TextureRegionDrawable categoryIcon = new TextureRegionDrawable(
+            Core.atlas.find("mindustry-auto-route-icon")
+        );
+
+        Vars.ui.settings.addCategory("Auto Route", categoryIcon, table -> {
+            table.checkPref(compactPanelSetting, true, value -> {
+                compactPanelLayout = value;
+                Core.app.post(this::rebuildRoutePanel);
+            });
+
+            table.checkPref(AutoRouteHudExtras.coreItemsSetting, true, value -> {
+                if(hudExtras != null) hudExtras.rebuildNow();
+            });
+            table.checkPref(AutoRouteHudExtras.unitsSetting, true, value -> {
+                if(hudExtras != null) hudExtras.rebuildNow();
+            });
+            table.checkPref(AutoRouteHudExtras.timeControlSetting, true, value -> {
+                if(hudExtras != null) hudExtras.onTimeControlEnabledChanged(value);
+            });
+            table.sliderPref(AutoRouteHudExtras.hudOpacitySetting, 82, 35, 100, 5,
+                value -> value + "%",
+                value -> {
+                    if(hudExtras != null) hudExtras.onOpacityChanged();
+                }
+            );
+        });
     }
 
     private void installForbiddenInput(){
@@ -379,6 +416,13 @@ public class AutoRouteMod extends Mod{
     private void updateRoutePanel(){
         updatePanelPlacement();
 
+        boolean preferredCompactLayout = Core.settings.getBool(compactPanelSetting, true);
+        if(preferredCompactLayout != compactPanelLayout){
+            compactPanelLayout = preferredCompactLayout;
+            Core.app.post(this::rebuildRoutePanel);
+            return;
+        }
+
         // Rebuild the compact grid after rotating the device so portrait and
         // landscape each use their intended widths.
         boolean portrait = isPortrait();
@@ -395,6 +439,11 @@ public class AutoRouteMod extends Mod{
     }
 
     private float expandedPanelWidth(){
+        if(!compactPanelLayout){
+            if(!Vars.mobile) return 334f;
+            return isPortrait() ? 300f : 326f;
+        }
+
         // The compact grid still needs enough horizontal room for Mindustry's
         // mobile font and toggle borders. This remains far smaller than the old
         // full-height panel without forcing labels onto a second line.
@@ -516,6 +565,11 @@ public class AutoRouteMod extends Mod{
 
         if(!optionsExpanded) return;
 
+        if(!compactPanelLayout){
+            rebuildFullOptionsTableContents();
+            return;
+        }
+
         float cellWidth = compactCellWidth();
         float cellHeight = 42f;
 
@@ -591,6 +645,106 @@ public class AutoRouteMod extends Mod{
                 .width(cellWidth)
                 .height(cellHeight);
         }
+    }
+
+    private void rebuildFullOptionsTableContents(){
+        float width = expandedPanelWidth();
+        float height = 39f;
+
+        oreButton = optionsTable.button("", Styles.cleart, this::cycleOreMode)
+            .width(width)
+            .height(height)
+            .left()
+            .get();
+        oreButton.update(() -> oreButton.setText(fullOreText()));
+        optionsTable.row();
+
+        preferenceButton = optionsTable.button("", Styles.cleart, this::cyclePreference)
+            .width(width)
+            .height(height)
+            .left()
+            .get();
+        preferenceButton.update(() -> preferenceButton.setText(fullRouteText()));
+        optionsTable.row();
+
+        editButton = optionsTable.button("", Styles.clearTogglet, this::toggleEditMode)
+            .width(width)
+            .height(height)
+            .left()
+            .get();
+        editButton.update(() -> {
+            editButton.setChecked(editMode);
+            if(editMode && selectedWaypointIndex >= 0){
+                editButton.setText("[accent]Edit route:[] Point " + pointName(selectedWaypointIndex));
+            }else{
+                editButton.setText(editMode ? "[accent]Edit route:[] select waypoint" : "[accent]Edit route:[] off");
+            }
+        });
+        optionsTable.row();
+
+        bridgeButton = optionsTable.button("", Styles.clearTogglet, this::toggleBridges)
+            .width(width)
+            .height(height)
+            .left()
+            .get();
+        bridgeButton.update(() -> {
+            bridgeButton.setChecked(bridgesEnabled);
+            bridgeButton.setText(bridgesEnabled ? "[accent]Bridges:[] automatic" : "[accent]Bridges:[] off");
+        });
+        optionsTable.row();
+
+        forbiddenButton = optionsTable.button("", Styles.clearTogglet, this::toggleForbidMode)
+            .width(width)
+            .height(height)
+            .left()
+            .get();
+        forbiddenButton.update(() -> {
+            forbiddenButton.setChecked(forbidMode);
+            forbiddenButton.setText(forbidMode ?
+                "[accent]Forbidden tiles:[] drawing (" + forbiddenTiles.size + ")" :
+                "[accent]Forbidden tiles:[] " + forbiddenTiles.size
+            );
+        });
+        optionsTable.row();
+
+        optionsTable.button("Reset forbidden tiles", Styles.cleart, this::clearForbiddenTiles)
+            .width(width)
+            .height(height)
+            .left();
+
+        if(forbidMode){
+            optionsTable.row();
+            forbiddenDrawButton = optionsTable.button("", Styles.clearTogglet, this::toggleForbiddenDrawMode)
+                .width(width)
+                .height(height)
+                .left()
+                .get();
+            forbiddenDrawButton.update(() -> {
+                forbiddenDrawButton.setChecked(!forbiddenDrawMarks);
+                forbiddenDrawButton.setText(forbiddenDrawMarks ? "[accent]Draw mode:[] mark" : "[accent]Draw mode:[] erase");
+            });
+            optionsTable.row();
+            optionsTable.button("Start new forbidden line", Styles.cleart, this::newForbiddenChain)
+                .width(width)
+                .height(height)
+                .left();
+        }
+    }
+
+    private String fullOreText(){
+        return switch(oreMode){
+            case auto -> "[accent]Ore:[] automatic fallback";
+            case avoid -> "[accent]Ore:[] never cross";
+            case allow -> "[accent]Ore:[] allow with penalty";
+        };
+    }
+
+    private String fullRouteText(){
+        return switch(preference){
+            case shortest -> "[accent]Route:[] shortest";
+            case straight -> "[accent]Route:[] straightest";
+            case clean -> "[accent]Route:[] least interference";
+        };
     }
 
     private String compactOreText(){
