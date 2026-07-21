@@ -197,14 +197,10 @@ public class AutoRouteHudExtras{
         moveButton.resizeImage(18f);
         addPanelDragListener(moveButton);
 
-        header.add("[accent]Items / units / time[]")
-            .left()
-            .padLeft(3f)
-            .growX();
-
-        overlayPanel.add(header).width(innerWidth).left();
+        // Keep the top row intentionally minimal: the move handle is the only
+        // control needed here, and removing the title saves vertical space.
+        overlayPanel.add(header).width(innerWidth).height(28f).left();
         overlayPanel.row();
-        addDivider(innerWidth);
     }
 
     private void addPanelDragListener(ImageButton moveButton){

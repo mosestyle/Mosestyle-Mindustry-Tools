@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2
+
+- Removed the **Items / units / time** title from the movable HUD.
+- Kept only the four-way move handle in the top row.
+- Removed the now-unnecessary divider beneath the title row, making the panel shorter and cleaner on Android.
+
 ## 0.7.1
 
 - Prevented Item Bridge exits from dumping one resource into a neighbouring parallel item line. Unsafe destination endpoints are skipped so the router extends, shifts, or reroutes the bridge to an isolated exit.

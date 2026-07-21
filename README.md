@@ -17,7 +17,11 @@ https://github.com/mosestyle/Mindustry-Auto-Route
 
 5. Restart Mindustry when prompted.
 
-## Version 0.7.1 highlights
+## Version 0.7.2 highlights
+
+### Cleaner movable HUD header
+
+The text label **Items / units / time** has been removed from the movable HUD. The top row now contains only the four-way move handle, making the resources, units, and time panel shorter and less visually busy on Android.
 
 ### Isolated Item Bridge exits
 
@@ -223,7 +227,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open **Actions** and wait for the build to finish.
-4. The workflow creates tag `v0.7.1`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
+4. The workflow creates tag `v0.7.2`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 
