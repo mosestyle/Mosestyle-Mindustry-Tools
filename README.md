@@ -17,7 +17,7 @@ https://github.com/mosestyle/Mindustry-Auto-Route
 
 5. Restart Mindustry when prompted.
 
-## Version 0.6.3 highlights
+## Version 0.6.4 highlights
 
 ### Compact two-column mobile UI
 
@@ -182,7 +182,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open **Actions** and wait for the build to finish.
-4. The workflow creates tag `v0.6.3`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
+4. The workflow creates tag `v0.6.4`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 

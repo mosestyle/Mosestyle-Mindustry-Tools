@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.4
+
+- Widened the compact Android panel so action and option labels no longer wrap unnecessarily.
+- Increased compact row heights and spacing for clearer touch targets and improved text readability.
+- Gave Undo, Clear, and Build fixed equal widths so `Clear` remains on one line.
+- Added extra padding around toggle buttons so the yellow selected border no longer crowds the Bridge text.
+- Kept the two-column compact layout; a future setting can offer compact and full single-column modes.
+
 ## 0.6.3
 
 - Redesigned the expanded routing panel into a compact two-column mobile layout.

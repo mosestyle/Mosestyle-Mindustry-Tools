@@ -3,6 +3,6 @@ name: "mindustry-auto-route"
 author: "Mosestyle"
 main: "autoroute.AutoRouteMod"
 description: "Smart waypoint routing for conveyors, ducts, and liquid conduits with editable waypoints, junctions, bridges, ore fallback, and forbidden areas."
-version: "0.6.3"
+version: "0.6.4"
 minGameVersion: 159
 java: true

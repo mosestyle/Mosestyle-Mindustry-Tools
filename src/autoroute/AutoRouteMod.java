@@ -395,12 +395,15 @@ public class AutoRouteMod extends Mod{
     }
 
     private float expandedPanelWidth(){
-        if(!Vars.mobile) return 304f;
-        return isPortrait() ? 248f : 284f;
+        // The compact grid still needs enough horizontal room for Mindustry's
+        // mobile font and toggle borders. This remains far smaller than the old
+        // full-height panel without forcing labels onto a second line.
+        if(!Vars.mobile) return 326f;
+        return isPortrait() ? 286f : 312f;
     }
 
     private float compactCellWidth(){
-        return (expandedPanelWidth() - 6f) / 2f;
+        return (expandedPanelWidth() - 10f) / 2f;
     }
 
     private void rebuildRoutePanel(){
@@ -413,12 +416,12 @@ public class AutoRouteMod extends Mod{
 
         routePanel.clearChildren();
         routePanel.margin(3f);
-        routePanel.defaults().pad(1f);
+        routePanel.defaults().pad(2f);
         optionsButton = null;
         optionsTable = null;
 
         Table header = new Table();
-        header.defaults().pad(1f);
+        header.defaults().pad(2f);
         TextureRegionDrawable moveIcon = new TextureRegionDrawable(
             Core.atlas.find("mindustry-auto-route-move")
         );
@@ -455,10 +458,14 @@ public class AutoRouteMod extends Mod{
             routePanel.row();
 
             Table actions = new Table();
-            actions.defaults().pad(1f).height(36f).growX();
-            actions.button("Undo", Styles.cleart, this::undoWaypoint);
-            actions.button("Clear", Styles.cleart, this::clearRoute);
-            actions.button("Build", Styles.defaultt, this::commitRoute);
+            float actionWidth = (panelWidth - 10f) / 3f;
+            actions.defaults().pad(2f).height(40f);
+            actions.button("Undo", Styles.cleart, this::undoWaypoint)
+                .width(actionWidth);
+            actions.button("Clear", Styles.cleart, this::clearRoute)
+                .width(actionWidth);
+            actions.button("Build", Styles.defaultt, this::commitRoute)
+                .width(actionWidth);
             routePanel.add(actions).width(panelWidth).growX();
 
             routePanel.row();
@@ -469,7 +476,7 @@ public class AutoRouteMod extends Mod{
 
             routePanel.row();
             optionsTable = new Table();
-            optionsTable.defaults().pad(1f);
+            optionsTable.defaults().pad(2f);
             routePanel.add(optionsTable).width(panelWidth).growX();
             rebuildOptionsTableContents();
         }
@@ -504,13 +511,13 @@ public class AutoRouteMod extends Mod{
         if(optionsTable == null || optionsButton == null) return;
 
         optionsTable.clearChildren();
-        optionsTable.defaults().pad(1f);
+        optionsTable.defaults().pad(2f);
         optionsButton.setText(optionsExpanded ? "[accent]Options[] -" : optionsSummary());
 
         if(!optionsExpanded) return;
 
         float cellWidth = compactCellWidth();
-        float cellHeight = 35f;
+        float cellHeight = 42f;
 
         // Two columns keep every option available while cutting the portrait
         // panel height almost in half compared with the old one-button-per-row UI.
