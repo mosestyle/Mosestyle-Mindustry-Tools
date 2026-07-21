@@ -1,4 +1,4 @@
-name: Build and release Mindustry Auto Route
+name: Build and release Mosestyle Mindustry Tools
 
 on:
   push:
@@ -53,8 +53,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           archive: false
-          name: MindustryAutoRoute-${{ steps.version.outputs.version }}
-          path: build/libs/MindustryAutoRoute.jar
+          name: MosestyleMindustryTools-${{ steps.version.outputs.version }}
+          path: build/libs/MosestyleMindustryTools.jar
 
       - name: Automatically create tag and GitHub release
         if: >-
@@ -73,7 +73,7 @@ jobs:
           fi
 
           gh release create "$TAG" \
-            build/libs/MindustryAutoRoute.jar \
+            build/libs/MosestyleMindustryTools.jar \
             --target "$GITHUB_SHA" \
-            --title "Mindustry Auto Route $TAG" \
+            --title "Mosestyle Mindustry Tools $TAG" \
             --generate-notes

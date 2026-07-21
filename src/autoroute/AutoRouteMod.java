@@ -196,7 +196,7 @@ public class AutoRouteMod extends Mod{
             Core.atlas.find("mindustry-auto-route-icon")
         );
 
-        Vars.ui.settings.addCategory("Auto Route", categoryIcon, table -> {
+        Vars.ui.settings.addCategory("Mosestyle Tools", categoryIcon, table -> {
             table.checkPref(compactPanelSetting, true, value -> {
                 compactPanelLayout = value;
                 Core.app.post(this::rebuildRoutePanel);

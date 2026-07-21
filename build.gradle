@@ -1,6 +1,6 @@
 apply plugin: "java"
 
-version = "0.7.2"
+version = "0.7.3"
 
 sourceSets.main.java.srcDirs = ["src"]
 
@@ -54,7 +54,7 @@ tasks.register("jarAndroid"){
             .join(" ")
 
         def d8 = isWindows ? "d8.bat" : "d8"
-        def command = "${d8} ${classpath} --min-api 21 --output MindustryAutoRouteAndroid.jar MindustryAutoRouteDesktop.jar"
+        def command = "${d8} ${classpath} --min-api 21 --output MosestyleMindustryToolsAndroid.jar MosestyleMindustryToolsDesktop.jar"
         def result = command.execute(null, new File("build/libs"))
         result.waitForProcessOutput(System.out, System.err)
 
@@ -65,7 +65,7 @@ tasks.register("jarAndroid"){
 }
 
 jar{
-    archiveFileName = "MindustryAutoRouteDesktop.jar"
+    archiveFileName = "MosestyleMindustryToolsDesktop.jar"
 
     from{
         configurations.runtimeClasspath.collect{ it.isDirectory() ? it : zipTree(it) }
@@ -85,18 +85,18 @@ tasks.register("deploy", Jar){
     dependsOn "jarAndroid"
     dependsOn "jar"
 
-    archiveFileName = "MindustryAutoRoute.jar"
+    archiveFileName = "MosestyleMindustryTools.jar"
 
     from{
         [
-            zipTree("build/libs/MindustryAutoRouteDesktop.jar"),
-            zipTree("build/libs/MindustryAutoRouteAndroid.jar")
+            zipTree("build/libs/MosestyleMindustryToolsDesktop.jar"),
+            zipTree("build/libs/MosestyleMindustryToolsAndroid.jar")
         ]
     }
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     doLast{
-        delete "build/libs/MindustryAutoRouteAndroid.jar"
+        delete "build/libs/MosestyleMindustryToolsAndroid.jar"
     }
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.3
+
+- Renamed the visible mod from **Auto Route** to **Mosestyle Mindustry Tools**.
+- Updated the Mindustry Settings category to **Mosestyle Tools**.
+- Updated GitHub installation instructions to `mosestyle/Mosestyle-Mindustry-Tools`.
+- Updated the repository URL to `https://github.com/mosestyle/Mosestyle-Mindustry-Tools`.
+- Renamed Gradle, workflow, release, and downloadable JAR branding to `MosestyleMindustryTools`.
+- Preserved the internal mod ID, Java package, texture names, and saved-setting keys for upgrade compatibility.
+
 ## 0.7.2
 
 - Removed the **Items / units / time** title from the movable HUD.

@@ -1,6 +1,6 @@
-# Mindustry Auto Route
+# Mosestyle Mindustry Tools
 
-A client-side Mindustry mod for Android and desktop. Tap a few waypoints and Auto Route calculates a safe item or liquid transport path, previews it, then adds normal Mindustry build plans.
+A client-side Mindustry utility suite for Android and desktop by **Mosestyle**. It includes smart Auto Route pathfinding for item and liquid lines, a movable compact core-items and unit HUD, and single-player time control up to x256.
 
 ## Install from GitHub
 
@@ -12,12 +12,18 @@ In Mindustry:
 4. Paste:
 
 ```text
-https://github.com/mosestyle/Mindustry-Auto-Route
+mosestyle/Mosestyle-Mindustry-Tools
 ```
+
+Repository: https://github.com/mosestyle/Mosestyle-Mindustry-Tools
 
 5. Restart Mindustry when prompted.
 
-## Version 0.7.2 highlights
+## Version 0.7.3 highlights
+
+### New project name and GitHub repository
+
+The mod is now publicly named **Mosestyle Mindustry Tools** to reflect its broader routing, HUD, and time-control features. The Auto Route system remains the main routing feature, and the internal mod ID and saved-setting keys remain unchanged so existing preferences continue working.
 
 ### Cleaner movable HUD header
 
@@ -29,11 +35,11 @@ Mindustry's normal Item Bridge destination can dump items to several adjacent si
 
 ### Movable and resizable items/units/time HUD
 
-The combined upper-right HUD now has a four-way move handle. Drag it anywhere on Android or desktop; portrait and landscape positions are remembered separately. **Settings → Auto Route → Items, units & time HUD width** adjusts the panel from narrow to wide, including the two-column item/unit grid and time-control row. Compact suffixes such as `k` use the orange accent color for better visibility.
+The combined upper-right HUD now has a four-way move handle. Drag it anywhere on Android or desktop; portrait and landscape positions are remembered separately. **Settings → Mosestyle Tools → Items, units & time HUD width** adjusts the panel from narrow to wide, including the two-column item/unit grid and time-control row. Compact suffixes such as `k` use the orange accent color for better visibility.
 
-### Auto Route settings page
+### Mosestyle Tools settings page
 
-Mindustry's main **Settings** menu now contains an **Auto Route** category. It includes:
+Mindustry's main **Settings** menu now contains a **Mosestyle Tools** category. It includes:
 
 - **Compact route panel** — enabled by default; disable it for a wider single-column option list.
 - **Core items display** — shows the resources stored in your team's core.
@@ -53,9 +59,9 @@ Core resources and friendly units are displayed in one small upper-right panel:
 - only resources and unit types currently present are shown;
 - item and unit sections can be enabled independently;
 - the panel hides with the normal HUD and minimap;
-- adjustable opacity through **Settings → Auto Route**.
+- adjustable opacity through **Settings → Mosestyle Tools**.
 
-If Mindustry's normal desktop **Display Core Items** option is also enabled, disable either that option or Auto Route's core-items display to avoid duplicate information.
+If Mindustry's normal desktop **Display Core Items** option is also enabled, disable either that option or Mosestyle Mindustry Tools' core-items display to avoid duplicate information.
 
 ### Better Vanilla-style time control up to x256
 
@@ -77,7 +83,7 @@ Time scaling is intentionally limited to single-player. Attempting to change it 
 
 ### Compact and full route-panel layouts
 
-The improved two-column route panel remains the default. Players who prefer the older list layout can disable **Compact route panel** in **Settings → Auto Route**. The full version uses a wider, left-aligned single-column list while keeping the collapse and semi-transparent behavior.
+The improved two-column route panel remains the default. Players who prefer the older list layout can disable **Compact route panel** in **Settings → Mosestyle Tools**. The full version uses a wider, left-aligned single-column list while keeping the collapse and semi-transparent behavior.
 
 ### Local contamination bridges
 
@@ -227,7 +233,7 @@ The included workflow builds one Android-and-desktop-compatible JAR and publishe
 1. Replace your repository files with this project's contents.
 2. Commit and push to `main`.
 3. Open **Actions** and wait for the build to finish.
-4. The workflow creates tag `v0.7.2`, creates the GitHub Release, and attaches `MindustryAutoRoute.jar`.
+4. The workflow creates tag `v0.7.3`, creates the GitHub Release, and attaches `MosestyleMindustryTools.jar`.
 
 For later releases, increase the version in both `mod.hjson` and `build.gradle` before pushing.
 
@@ -248,7 +254,7 @@ gradle deploy
 Output:
 
 ```text
-build/libs/MindustryAutoRoute.jar
+build/libs/MosestyleMindustryTools.jar
 ```
 
 ## Compatibility
@@ -267,7 +273,7 @@ build/libs/MindustryAutoRoute.jar
 
 ## Credits
 
-The optional HUD concepts were inspired by the open-source **Better Vanilla** core/unit display and time-control UI, and by the original open-source **TimeControl** mod. Auto Route uses its own compact two-column layout and single-player implementation.
+The optional HUD concepts were inspired by the open-source **Better Vanilla** core/unit display and time-control UI, and by the original open-source **TimeControl** mod. Mosestyle Mindustry Tools uses its own compact two-column layout and single-player implementation.
 
 ## License
 

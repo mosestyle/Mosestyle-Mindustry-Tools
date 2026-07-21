@@ -328,7 +328,7 @@ public class AutoRouteHudExtras{
 
     private boolean canChangeTime(){
         if(Vars.net != null && Vars.net.active()){
-            Vars.ui.showInfoToast("Auto Route time control is available in single-player only.", 3f);
+            Vars.ui.showInfoToast("Mosestyle Tools time control is available in single-player only.", 3f);
             return false;
         }
         return true;
