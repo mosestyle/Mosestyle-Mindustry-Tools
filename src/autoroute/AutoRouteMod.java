@@ -145,6 +145,7 @@ public class AutoRouteMod extends Mod{
     private Table routePanel;
     private AutoRouteHudExtras hudExtras;
     private EnemyHealthBars enemyHealthBars;
+    private CustomMusicPlayer customMusicPlayer;
 
     private boolean panelPositionReady;
     private boolean panelLayoutPortrait;
@@ -154,12 +155,14 @@ public class AutoRouteMod extends Mod{
     @Override
     public void init(){
         loadSettings();
+        customMusicPlayer = new CustomMusicPlayer();
         buildSettingsMenu();
         buildHud();
         hudExtras = new AutoRouteHudExtras();
         hudExtras.init();
         enemyHealthBars = new EnemyHealthBars();
         enemyHealthBars.init();
+        customMusicPlayer.init();
         installForbiddenInput();
 
         Events.on(EventType.TapEvent.class, event -> {
@@ -234,6 +237,8 @@ public class AutoRouteMod extends Mod{
             table.sliderPref(EnemyHealthBars.scaleSetting, 100, 60, 160, 10,
                 value -> value + "%"
             );
+
+            customMusicPlayer.addSettings(table);
         });
     }
 

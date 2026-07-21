@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0
+
+- Added a cross-platform custom music player with its own independent volume.
+- Added multi-file import for MP3, OGG, WAV, and FLAC tracks. Imported songs are copied into a private Mosestyle music library under Mindustry's data directory.
+- Added a movable in-game player with previous, play/pause, next, shuffle, track name, and volume controls.
+- Added shuffle and repeat-playlist settings.
+- Added optional automatic muting of Mindustry's official soundtrack while custom music is playing, with restoration of the previous official music volume.
+- Added a music-library manager for removing individual tracks or clearing all imported music.
+- Added a desktop-only button for opening the private music folder directly, plus a library refresh action after files are copied into it.
+- Added automatic skipping when an imported track cannot be decoded.
+
 ## 0.7.5
 
 - Removed the unnecessary third-party notices file and external health-bar attribution references.
