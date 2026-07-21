@@ -17,9 +17,7 @@ import mindustry.graphics.Pal;
  *
  * <p>The renderer is intentionally lightweight: it only checks units inside
  * the current camera rectangle and only draws bars for damaged or shielded
- * enemies. This follows the compact visual approach used by Mindustry Tool's
- * open-source health-bar visualizer while keeping Mosestyle's settings keys
- * and implementation independent.</p>
+ * enemies.</p>
  */
 public class EnemyHealthBars{
     public static final String enabledSetting = "mindustry-auto-route-enemy-health-bars";

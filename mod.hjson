@@ -3,6 +3,6 @@ name: "mindustry-auto-route"
 author: "Mosestyle"
 main: "autoroute.AutoRouteMod"
 description: "A Mindustry utility suite by Mosestyle: smart item/liquid routing, compact HUD tools, enemy health bars, and x1-x256 single-player time control."
-version: "0.7.4"
+version: "0.7.5"
 minGameVersion: 159
 java: true

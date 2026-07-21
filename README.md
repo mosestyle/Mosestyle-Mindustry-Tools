@@ -31,7 +31,7 @@ Actual ore overlays such as copper, lead, coal, titanium, thorium, scrap, beryll
 
 Enable **Settings → Mosestyle Tools → Enemy health bars** to display compact bars above damaged enemy units currently visible on screen. Shielded enemies receive a second shield bar. The settings page also includes opacity and size controls.
 
-The implementation uses Mindustry's visible-unit group and native drawing APIs. Its compact approach is inspired by Mindustry Tool's MIT-licensed health-bar visualizer.
+The implementation uses Mindustry's visible-unit group and native drawing APIs.
 
 ## Version 0.7.3 highlights
 
@@ -292,7 +292,6 @@ build/libs/MosestyleMindustryTools.jar
 
 The optional HUD concepts were inspired by the open-source **Better Vanilla** core/unit display and time-control UI, and by the original open-source **TimeControl** mod. Mosestyle Mindustry Tools uses its own compact two-column layout and single-player implementation.
 
-The optional enemy health-bar renderer is inspired by **Mindustry Tool**'s MIT-licensed health-bar visualizer (Copyright © 2024 Mindustry Tool).
 
 ## License
 

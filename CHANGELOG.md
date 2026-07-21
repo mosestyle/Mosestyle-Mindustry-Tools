@@ -1,11 +1,16 @@
 # Changelog
 
+## 0.7.5
+
+- Removed the unnecessary third-party notices file and external health-bar attribution references.
+- Kept the enemy health-bar renderer as Mosestyle Mindustry Tools' independent implementation.
+
 ## 0.7.4
 
 - Fixed **Ore: automatic fallback** treating large floor resources such as sand like protected ore overlays. Sand floors no longer force huge detours or unnecessary bridges.
 - Automatic bridges are no longer triggered solely to avoid an ore tile; bridges remain reserved for real obstacles, multi-line crossings, and local item-isolation zones.
 - Ore avoidance continues to protect actual ore overlays such as copper, lead, coal, titanium, thorium, scrap, beryllium, and tungsten.
-- Added optional damaged-enemy health and shield bars, inspired by Mindustry Tool's open-source health-bar visualizer.
+- Added optional damaged-enemy health and shield bars.
 - Added health-bar enable, opacity, and size controls under **Settings → Mosestyle Tools**.
 
 ## 0.7.3
