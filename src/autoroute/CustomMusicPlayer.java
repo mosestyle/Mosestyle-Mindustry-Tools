@@ -5,6 +5,7 @@ import arc.Core;
 import arc.audio.Music;
 import arc.files.Fi;
 import arc.input.KeyCode;
+import arc.func.Intc;
 import arc.scene.Element;
 import arc.scene.event.InputEvent;
 import arc.scene.event.InputListener;
@@ -27,6 +28,7 @@ import mindustry.ui.dialogs.BaseDialog;
 import mindustry.ui.dialogs.SettingsMenuDialog.SettingsTable;
 
 import java.io.InputStream;
+import java.lang.reflect.Proxy;
 import java.util.Locale;
 
 /**
@@ -73,6 +75,13 @@ public class CustomMusicPlayer{
     private boolean panelPositionReady;
     private float lastSceneWidth = -1f;
     private float lastSceneHeight = -1f;
+
+    // Mindustry v159.7's Android file chooser ignores ClipData-only multi-file
+    // results on some document providers. Register one small Android result
+    // listener through reflection so this mod can correctly receive every URI
+    // without adding Android classes to the desktop build.
+    private Integer androidPickerRequestCode;
+    private Object androidPickerListenerProxy;
 
     public void init(){
         musicDirectory = Core.settings.getDataDirectory()
@@ -308,12 +317,196 @@ public class CustomMusicPlayer{
     }
 
     private void importMusic(){
+        // Mindustry v159.7 checks Intent.getData() before reading ClipData.
+        // Some Android document providers return only ClipData for a multi-file
+        // choice, so the stock callback never fires. Use a reflection-only
+        // Android picker there, and retain Mindustry's chooser everywhere else.
+        if(Core.app.isAndroid() && openAndroidMultiMusicPicker()) return;
+
         FileChooser.open(supportedExtensions)
             .title("Import music")
-            .submitMulti(files -> Vars.ui.loadAnd("Importing music", () -> importSelectedFiles((Fi[])files)));
+            .submitMulti(files -> {
+                Fi[] selected = (Fi[])files;
+                MusicSelection[] selections = new MusicSelection[selected.length];
+                for(int i = 0; i < selected.length; i++){
+                    selections[i] = new MusicSelection(selected[i], selected[i] == null ? "" : selected[i].name());
+                }
+                Vars.ui.loadAnd("Importing music", () -> importSelectedFiles(selections));
+            });
     }
 
-    private void importSelectedFiles(Fi[] files){
+    /**
+     * Opens Android's Storage Access Framework directly so all ClipData entries
+     * are returned. Reflection keeps the Java mod compatible with desktop and
+     * avoids compiling Android SDK classes into the shared source set.
+     */
+    private boolean openAndroidMultiMusicPicker(){
+        try{
+            ensureAndroidPickerListener();
+            if(androidPickerRequestCode == null) return false;
+
+            Class<?> intentClass = Class.forName("android.content.Intent");
+            Object intent = intentClass.getConstructor(String.class)
+                .newInstance("android.intent.action.OPEN_DOCUMENT");
+
+            intentClass.getMethod("addCategory", String.class)
+                .invoke(intent, "android.intent.category.OPENABLE");
+            intentClass.getMethod("setType", String.class)
+                .invoke(intent, "audio/*");
+            intentClass.getMethod("putExtra", String.class, boolean.class)
+                .invoke(intent, "android.intent.extra.ALLOW_MULTIPLE", true);
+
+            Core.app.getClass()
+                .getMethod("startActivityForResult", intentClass, int.class)
+                .invoke(Core.app, intent, androidPickerRequestCode.intValue());
+            return true;
+        }catch(Throwable error){
+            Log.err("Could not open the Android multi-file music picker; falling back to Mindustry's chooser.");
+            Log.err(error);
+            return false;
+        }
+    }
+
+    private void ensureAndroidPickerListener() throws Exception{
+        if(androidPickerRequestCode != null && androidPickerListenerProxy != null) return;
+
+        Class<?> listenerClass = Class.forName(
+            "arc.backend.android.AndroidApplication$AndroidEventListener"
+        );
+
+        androidPickerListenerProxy = Proxy.newProxyInstance(
+            listenerClass.getClassLoader(),
+            new Class<?>[]{listenerClass},
+            (proxy, method, args) -> {
+                if("onActivityResult".equals(method.getName()) && args != null && args.length == 2){
+                    int resultCode = ((Number)args[0]).intValue();
+                    handleAndroidPickerResult(resultCode, args[1]);
+                }
+                return null;
+            }
+        );
+
+        Intc requestCodeReceiver = value -> androidPickerRequestCode = value;
+        Core.app.getClass()
+            .getMethod("addResultListener", Intc.class, listenerClass)
+            .invoke(Core.app, requestCodeReceiver, androidPickerListenerProxy);
+    }
+
+    private void handleAndroidPickerResult(int resultCode, Object intent){
+        // Activity.RESULT_OK is -1. Keep Android types out of compile-time code.
+        if(resultCode != -1 || intent == null) return;
+
+        try{
+            Object resolver = Core.app.getClass().getMethod("getContentResolver").invoke(Core.app);
+            Seq<Object> uris = new Seq<>();
+
+            Object clipData = intent.getClass().getMethod("getClipData").invoke(intent);
+            if(clipData != null){
+                int count = ((Number)clipData.getClass().getMethod("getItemCount").invoke(clipData)).intValue();
+                for(int i = 0; i < count; i++){
+                    Object item = clipData.getClass().getMethod("getItemAt", int.class).invoke(clipData, i);
+                    Object uri = item.getClass().getMethod("getUri").invoke(item);
+                    addUniqueUri(uris, uri);
+                }
+            }
+
+            Object dataUri = intent.getClass().getMethod("getData").invoke(intent);
+            addUniqueUri(uris, dataUri);
+
+            if(uris.isEmpty()){
+                Core.app.post(() -> Vars.ui.showInfoToast("No music files were selected.", 3f));
+                return;
+            }
+
+            MusicSelection[] selections = new MusicSelection[uris.size];
+            for(int i = 0; i < uris.size; i++){
+                Object uri = uris.get(i);
+                String displayName = queryAndroidDisplayName(resolver, uri);
+                selections[i] = new MusicSelection(androidUriFile(resolver, uri), displayName);
+            }
+
+            Core.app.post(() -> Vars.ui.loadAnd(
+                "Importing " + selections.length + " music file" + (selections.length == 1 ? "" : "s"),
+                () -> importSelectedFiles(selections)
+            ));
+        }catch(Throwable error){
+            Log.err(error);
+            Core.app.post(() -> Vars.ui.showException("Could not read the selected Android music files.", error));
+        }
+    }
+
+    private void addUniqueUri(Seq<Object> uris, Object uri){
+        if(uri == null) return;
+        String value = uri.toString();
+        for(Object existing : uris){
+            if(existing != null && existing.toString().equals(value)) return;
+        }
+        uris.add(uri);
+    }
+
+    private Fi androidUriFile(Object resolver, Object uri){
+        return new Fi(uri.toString()){
+            @Override
+            public InputStream read(){
+                try{
+                    Class<?> uriClass = Class.forName("android.net.Uri");
+                    Class<?> resolverClass = Class.forName("android.content.ContentResolver");
+                    return (InputStream)resolverClass
+                        .getMethod("openInputStream", uriClass)
+                        .invoke(resolver, uri);
+                }catch(Throwable error){
+                    throw new RuntimeException("Could not open Android music document: " + uri, error);
+                }
+            }
+        };
+    }
+
+    private String queryAndroidDisplayName(Object resolver, Object uri){
+        Object cursor = null;
+        try{
+            Class<?> uriClass = Class.forName("android.net.Uri");
+            Class<?> resolverClass = Class.forName("android.content.ContentResolver");
+            Class<?> cursorClass = Class.forName("android.database.Cursor");
+            cursor = resolverClass.getMethod(
+                "query",
+                uriClass,
+                String[].class,
+                String.class,
+                String[].class,
+                String.class
+            ).invoke(resolver, uri, new String[]{"_display_name"}, null, null, null);
+
+            if(cursor != null){
+                boolean hasRow = (Boolean)cursorClass.getMethod("moveToFirst").invoke(cursor);
+                int column = ((Number)cursorClass
+                    .getMethod("getColumnIndex", String.class)
+                    .invoke(cursor, "_display_name")).intValue();
+
+                if(hasRow && column >= 0){
+                    Object value = cursorClass.getMethod("getString", int.class).invoke(cursor, column);
+                    if(value != null && !value.toString().trim().isEmpty()) return value.toString();
+                }
+            }
+        }catch(Throwable error){
+            Log.debug("Could not query Android display filename for @", uri);
+        }finally{
+            if(cursor != null){
+                try{
+                    Class.forName("android.database.Cursor").getMethod("close").invoke(cursor);
+                }catch(Throwable ignored){
+                }
+            }
+        }
+
+        try{
+            Object segment = uri.getClass().getMethod("getLastPathSegment").invoke(uri);
+            if(segment != null) return segment.toString();
+        }catch(Throwable ignored){
+        }
+        return "";
+    }
+
+    private void importSelectedFiles(MusicSelection[] files){
         int imported = 0;
         int skipped = 0;
         int failed = 0;
@@ -321,22 +514,20 @@ public class CustomMusicPlayer{
         try{
             musicDirectory.mkdirs();
 
-            for(Fi source : files){
+            for(MusicSelection selection : files){
+                Fi source = selection == null ? null : selection.source;
                 if(source == null || source.isDirectory()){
                     skipped++;
                     continue;
                 }
 
-                // Android's document picker gives Mindustry a content-URI-backed Fi.
-                // Its path frequently contains an opaque document ID instead of the
-                // original filename, so extension() may be empty even for a valid MP3.
                 String extension = detectedExtension(source);
                 if(extension == null){
                     skipped++;
                     continue;
                 }
 
-                String base = safeImportedName(source, imported + skipped + failed + 1);
+                String base = safeImportedName(selection, extension, imported + skipped + failed + 1);
                 Fi destination = uniqueDestination(base, extension);
 
                 try(InputStream input = source.read()){
@@ -349,7 +540,6 @@ public class CustomMusicPlayer{
                     continue;
                 }
 
-                // Never add an empty/failed copy to the library.
                 if(!destination.exists() || destination.length() <= 0L){
                     destination.delete();
                     failed++;
@@ -384,19 +574,24 @@ public class CustomMusicPlayer{
         }
     }
 
-    private String safeImportedName(Fi source, int fallbackNumber){
-        String rawName = source.nameWithoutExtension();
+    private String safeImportedName(MusicSelection selection, String extension, int fallbackNumber){
+        String rawName = selection == null ? "" : selection.displayName;
+        if(rawName == null || rawName.trim().isEmpty()){
+            rawName = selection == null || selection.source == null ? "" : selection.source.name();
+        }
 
-        // Content URIs often end in values such as "audio:12345". Keep a
-        // readable filename when available; otherwise use a stable track name.
         if(rawName == null) rawName = "";
         int slash = Math.max(rawName.lastIndexOf('/'), rawName.lastIndexOf('\\'));
         if(slash >= 0 && slash + 1 < rawName.length()) rawName = rawName.substring(slash + 1);
-        int colon = rawName.lastIndexOf(':');
-        if(colon >= 0 && colon + 1 < rawName.length()) rawName = rawName.substring(colon + 1);
 
-        String base = Strings.sanitizeFilename(rawName);
-        if(base == null || base.trim().isEmpty() || base.matches("\\d+")){
+        String suffix = "." + extension;
+        if(rawName.toLowerCase(Locale.ROOT).endsWith(suffix)){
+            rawName = rawName.substring(0, rawName.length() - suffix.length());
+        }
+
+        String sanitized = Strings.sanitizeFilename(rawName);
+        String base = sanitized == null ? "" : sanitized.trim();
+        if(base.isEmpty() || base.matches("\\d+")){
             base = "track-" + fallbackNumber;
         }
         return base;
@@ -542,9 +737,11 @@ public class CustomMusicPlayer{
         for(Fi track : tracks.copy()){
             table.table(Styles.grayPanel, row -> {
                 row.margin(8f);
-                row.add(shorten(track.nameWithoutExtension(), 46))
+                row.add(shorten(track.nameWithoutExtension(), 40))
                     .left()
                     .growX();
+                row.button(Icon.play, Styles.cleari, () -> playTrackFromLibrary(track))
+                    .size(42f);
                 row.button(Icon.trash, Styles.cleari, () -> {
                     Vars.ui.showConfirm("Remove track", "Remove \"" + track.name() + "\"?", () -> {
                         removeTrack(track);
@@ -553,6 +750,27 @@ public class CustomMusicPlayer{
                 }).size(42f);
             }).growX().height(50f).padBottom(3f);
             table.row();
+        }
+    }
+
+    private void playTrackFromLibrary(Fi track){
+        if(track == null) return;
+
+        for(int i = 0; i < tracks.size; i++){
+            if(tracks.get(i).equals(track) || tracks.get(i).name().equals(track.name())){
+                currentIndex = i;
+                playCurrentTrack(true);
+                return;
+            }
+        }
+
+        scanLibrary();
+        for(int i = 0; i < tracks.size; i++){
+            if(tracks.get(i).name().equals(track.name())){
+                currentIndex = i;
+                playCurrentTrack(true);
+                return;
+            }
         }
     }
 
@@ -854,6 +1072,16 @@ public class CustomMusicPlayer{
         }
     }
 
+
+    private static final class MusicSelection{
+        final Fi source;
+        final String displayName;
+
+        MusicSelection(Fi source, String displayName){
+            this.source = source;
+            this.displayName = displayName == null ? "" : displayName;
+        }
+    }
 
     private static class SectionSetting extends SettingsTable.Setting{
         SectionSetting(String name){

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.3
+
+- Preserved Android document display names when importing music, so new tracks use their real filenames instead of generic `track-1` names.
+- Added a Play button beside every track in the Custom Music Library for directly selecting and starting that song.
+- Added a dedicated Android multi-file picker path that reads every selected `ClipData` URI, fixing providers where selecting several songs previously returned no imports.
+- Deduplicated Android URI results and retained the existing MP3, OGG, WAV, and FLAC signature checks and private-library copying.
+
 ## 0.8.2
 
 - Fixed Android music imports appearing to complete while leaving the custom library empty.
