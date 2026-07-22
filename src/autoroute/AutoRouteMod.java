@@ -19,7 +19,6 @@ import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType;
 import mindustry.graphics.Drawf;
 import mindustry.graphics.Pal;
-import mindustry.gen.Icon;
 import mindustry.mod.Mod;
 import mindustry.ui.Styles;
 import mindustry.world.Block;
@@ -91,7 +90,6 @@ public class AutoRouteMod extends Mod{
     private final Seq<Point2> routeTiles = new Seq<>();
     private final Seq<BridgeLink> routeBridges = new Seq<>();
     private final Seq<BuildPlan> routePlans = new Seq<>();
-    private final Seq<RouteAlternative> routeAlternatives = new Seq<>();
     private final IntSet routeKeys = new IntSet();
     private final IntSet routeJunctionKeys = new IntSet();
     private final IntSet waypointKeys = new IntSet();
@@ -156,7 +154,6 @@ public class AutoRouteMod extends Mod{
     private int forbiddenRevision;
     private int queuedPlanFingerprint;
     private int previewPlanFingerprint;
-    private int selectedRouteAlternative = -1;
 
     private ImageButton routeButton;
     private TextButton oreButton;
@@ -631,22 +628,6 @@ public class AutoRouteMod extends Mod{
                 .width(actionWidth);
             routePanel.add(actions).width(panelWidth).growX();
 
-            if(!upgradeMode && routeAlternatives.size > 1){
-                routePanel.row();
-
-                Table alternatives = new Table();
-                alternatives.defaults().pad(1f);
-                alternatives.button(Icon.left, Styles.cleari, () -> cycleRouteAlternative(-1))
-                    .size(34f);
-                alternatives.label(this::routeAlternativeText)
-                    .width(Math.max(110f, panelWidth - 76f))
-                    .height(32f)
-                    .center();
-                alternatives.button(Icon.right, Styles.cleari, () -> cycleRouteAlternative(1))
-                    .size(34f);
-                routePanel.add(alternatives).width(panelWidth).height(36f).growX();
-            }
-
             routePanel.row();
             optionsButton = routePanel.button("[accent]Options[] +", Styles.cleart, this::toggleOptions)
                 .width(panelWidth)
@@ -921,23 +902,6 @@ public class AutoRouteMod extends Mod{
         };
     }
 
-    private String routeAlternativeText(){
-        if(routeAlternatives.isEmpty() || selectedRouteAlternative < 0 ||
-            selectedRouteAlternative >= routeAlternatives.size){
-            return "[accent]Route preview[]";
-        }
-
-        RouteAlternative alternative = routeAlternatives.get(selectedRouteAlternative);
-        return "[accent]Route " + (selectedRouteAlternative + 1) + "/" + routeAlternatives.size + "[] • " +
-            alternative.preference.shortLabel;
-    }
-
-    private void cycleRouteAlternative(int amount){
-        if(routeAlternatives.size <= 1) return;
-        int next = Math.floorMod(selectedRouteAlternative + amount, routeAlternatives.size);
-        applyRouteAlternative(next, true);
-    }
-
     private String optionsSummary(){
         if(isPortrait()) return "[accent]Options[] +";
         String bridge = bridgesEnabled ? "Auto bridge" : "No bridge";
@@ -1124,9 +1088,6 @@ public class AutoRouteMod extends Mod{
         if(smartBridges > 0) details.append(" • ").append(smartBridges).append("B");
         if(oreFallbackSegments > 0) details.append(" • Ore");
         if(connectionEndpoints > 0) details.append(" • ").append(connectionEndpoints).append("L");
-        if(routeAlternatives.size > 1 && selectedRouteAlternative >= 0){
-            details.append(" • R").append(selectedRouteAlternative + 1).append('/').append(routeAlternatives.size);
-        }
 
         return "[accent]" + routeBlock.localizedName + "[]\n" +
             waypoints.size + " pts • " + routePlans.size + " tiles" + details;
@@ -2217,9 +2178,7 @@ public class AutoRouteMod extends Mod{
 
         segments.add(path);
         waypoints.add(point);
-        if(!rebuildRouteAlternatives(false)){
-            rebuildRouteAndPlans();
-        }
+        rebuildRouteAndPlans();
     }
 
     private void showPathFailureToast(){
@@ -2258,9 +2217,7 @@ public class AutoRouteMod extends Mod{
 
         waypoints.remove(waypoints.size - 1);
         segments.remove(segments.size - 1);
-        if(!recalculateAllSegments(true)){
-            rebuildRouteAndPlans();
-        }
+        rebuildRouteAndPlans();
     }
 
     private void clearRoute(){
@@ -2269,8 +2226,6 @@ public class AutoRouteMod extends Mod{
         routeTiles.clear();
         routeBridges.clear();
         routePlans.clear();
-        routeAlternatives.clear();
-        selectedRouteAlternative = -1;
         routeKeys.clear();
         routeJunctionKeys.clear();
         waypointKeys.clear();
@@ -2287,142 +2242,34 @@ public class AutoRouteMod extends Mod{
     }
 
     private boolean recalculateAllSegments(boolean refreshPlans){
-        return rebuildRouteAlternatives(refreshPlans);
-    }
-
-    /**
-     * Calculates up to three genuinely different previews using the existing
-     * Short, Straight, and Clean scoring modes. The currently selected mode is
-     * always calculated first; identical paths are deduplicated so the arrows
-     * only cycle through previews that actually change the map route.
-     */
-    private boolean rebuildRouteAlternatives(boolean refreshPlans){
         if(refreshPlans) refreshQueuedPlanSnapshot();
 
-        int previousCount = routeAlternatives.size;
-        if(waypoints.size < 2){
-            routeAlternatives.clear();
-            selectedRouteAlternative = -1;
-            rebuildRouteAndPlans();
-            refreshAlternativeControls(previousCount, 0);
-            return true;
-        }
-
-        // Occupancy or option changes can invalidate every cached segment.
+        // Recalculation is also used after the world or local build queue has
+        // changed. Do not reuse a path cached against old tile occupancy.
         pathCache.clear();
-        RoutePreference requested = preference;
-        Seq<RouteAlternative> candidates = new Seq<>();
-        HashSet<String> signatures = new HashSet<>();
 
-        RoutePreference[] values = RoutePreference.values();
-        for(int offset = 0; offset < values.length; offset++){
-            RoutePreference candidatePreference = values[(requested.ordinal() + offset) % values.length];
-            RouteAlternative candidate = calculateRouteAlternative(candidatePreference);
-
-            // Preserve the old preview when the currently requested route mode
-            // no longer has a valid path. Callers can then safely revert the
-            // option/waypoint/forbidden edit exactly as before.
-            if(offset == 0 && candidate == null){
-                preference = requested;
-                rebuildRouteAndPlans();
-                return false;
-            }
-            if(candidate == null || !signatures.add(candidate.signature)) continue;
-            candidates.add(candidate);
-        }
-
-        if(candidates.isEmpty()){
-            preference = requested;
-            rebuildRouteAndPlans();
-            return false;
-        }
-
-        routeAlternatives.clear();
-        routeAlternatives.addAll(candidates);
-        selectedRouteAlternative = 0;
-        applyRouteAlternative(0, false);
-        searchTimedOut = false;
-        searchLimitHit = false;
-        refreshAlternativeControls(previousCount, routeAlternatives.size);
-        return true;
-    }
-
-    private RouteAlternative calculateRouteAlternative(RoutePreference candidatePreference){
-        RoutePreference savedPreference = preference;
-        preference = candidatePreference;
-
-        Seq<PathResult> candidateSegments = new Seq<>();
+        Seq<PathResult> replacement = new Seq<>();
         routeTiles.clear();
         routeKeys.clear();
         if(!waypoints.isEmpty()) addRouteTile(waypoints.first());
 
-        try{
-            for(int i = 1; i < waypoints.size; i++){
-                Point2 start = waypoints.get(i - 1);
-                Point2 goal = waypoints.get(i);
-                PathResult path = findPath(start, goal);
-                if(path == null || !validateIntentionalConnections(path, start, goal, false)){
-                    return null;
-                }
-
-                candidateSegments.add(path.copy());
-                for(int j = 1; j < path.points.size; j++) addRouteTile(path.points.get(j));
+        for(int i = 1; i < waypoints.size; i++){
+            Point2 start = waypoints.get(i - 1);
+            Point2 goal = waypoints.get(i);
+            PathResult path = findPath(start, goal);
+            if(path == null || !validateIntentionalConnections(path, start, goal)){
+                rebuildRouteAndPlans();
+                return false;
             }
 
-            return new RouteAlternative(candidatePreference, candidateSegments, routeSignature(candidateSegments));
-        }finally{
-            preference = savedPreference;
+            replacement.add(path);
+            for(int j = 1; j < path.points.size; j++) addRouteTile(path.points.get(j));
         }
-    }
-
-    private String routeSignature(Seq<PathResult> candidateSegments){
-        StringBuilder signature = new StringBuilder();
-        for(PathResult segment : candidateSegments){
-            signature.append('|');
-            for(Point2 point : segment.points){
-                signature.append(point.x).append(',').append(point.y).append(';');
-            }
-            signature.append('B');
-            for(BridgeLink bridge : segment.bridges){
-                signature.append(bridge.start.x).append(',').append(bridge.start.y)
-                    .append('>').append(bridge.end.x).append(',').append(bridge.end.y).append(';');
-            }
-        }
-        return signature.toString();
-    }
-
-    private void applyRouteAlternative(int index, boolean announce){
-        if(index < 0 || index >= routeAlternatives.size) return;
-
-        RouteAlternative alternative = routeAlternatives.get(index);
-        selectedRouteAlternative = index;
-        preference = alternative.preference;
-        Core.settings.put(preferenceSetting, preference.ordinal());
 
         segments.clear();
-        for(PathResult segment : alternative.segments){
-            segments.add(segment.copy());
-        }
+        segments.addAll(replacement);
         rebuildRouteAndPlans();
-
-        if(announce){
-            String extras = smartBridges > 0 ? " • " + smartBridges + " bridge" + (smartBridges == 1 ? "" : "s") : "";
-            if(smartCrossings > 0){
-                extras += " • " + smartCrossings + " junction" + (smartCrossings == 1 ? "" : "s");
-            }
-            showToast(
-                "Previewing route " + (index + 1) + "/" + routeAlternatives.size + ": " +
-                    alternative.preference.previewLabel + " • " + routePlans.size + " tiles" + extras + ".",
-                4f
-            );
-            rebuildOptionsTable();
-        }
-    }
-
-    private void refreshAlternativeControls(int oldCount, int newCount){
-        if((oldCount > 1) != (newCount > 1) && routePanel != null){
-            Core.app.post(this::rebuildRoutePanel);
-        }
+        return true;
     }
 
     private void rebuildRouteAndPlans(){
@@ -3763,22 +3610,16 @@ public class AutoRouteMod extends Mod{
     }
 
     private boolean validateIntentionalConnections(PathResult path, Point2 start, Point2 goal){
-        return validateIntentionalConnections(path, start, goal, true);
-    }
-
-    private boolean validateIntentionalConnections(PathResult path, Point2 start, Point2 goal, boolean announce){
         if(path == null || path.points.size < 2) return false;
 
         if(isConnectionEndpoint(start.x, start.y)){
             int required = direction(path.points.get(0), path.points.get(1));
             int existingRotation = connectionRotation(start.x, start.y);
             if(existingRotation != required){
-                if(announce){
-                    showToast(
-                        "The starting transport block points another way. Use it as an end point, rotate it, or choose the tile in front of it.",
-                        5f
-                    );
-                }
+                showToast(
+                    "The starting transport block points another way. Use it as an end point, rotate it, or choose the tile in front of it.",
+                    5f
+                );
                 return false;
             }
         }
@@ -3788,14 +3629,12 @@ public class AutoRouteMod extends Mod{
             int arrivalDirection = direction(path.points.get(path.points.size - 2), path.points.peek());
 
             if(!isValidConnectionArrival(goal.x, goal.y, arrivalDirection)){
-                if(announce){
-                    showToast(
-                        requiresRearInput(target) ?
-                            "That armored endpoint only accepts a straight rear connection." :
-                            "That endpoint cannot accept a head-on connection. Connect from its rear or side.",
-                        5f
-                    );
-                }
+                showToast(
+                    requiresRearInput(target) ?
+                        "That armored endpoint only accepts a straight rear connection." :
+                        "That endpoint cannot accept a head-on connection. Connect from its rear or side.",
+                    5f
+                );
                 return false;
             }
         }
@@ -3976,18 +3815,16 @@ public class AutoRouteMod extends Mod{
     }
 
     private enum RoutePreference{
-        shortest("[accent]Route:[] shortest", "Short", "Shortest"),
-        straight("[accent]Route:[] straightest", "Straight", "Straightest"),
-        clean("[accent]Route:[] least interference", "Clean", "Least interference");
+        shortest("[accent]Route:[] shortest", "Short"),
+        straight("[accent]Route:[] straightest", "Straight"),
+        clean("[accent]Route:[] least interference", "Clean");
 
         final String label;
         final String shortLabel;
-        final String previewLabel;
 
-        RoutePreference(String label, String shortLabel, String previewLabel){
+        RoutePreference(String label, String shortLabel){
             this.label = label;
             this.shortLabel = shortLabel;
-            this.previewLabel = previewLabel;
         }
 
         RoutePreference next(){
@@ -3996,20 +3833,6 @@ public class AutoRouteMod extends Mod{
 
         static RoutePreference fromOrdinal(int ordinal){
             return values()[Math.floorMod(ordinal, values().length)];
-        }
-    }
-
-    private static final class RouteAlternative{
-        final RoutePreference preference;
-        final Seq<PathResult> segments = new Seq<>();
-        final String signature;
-
-        RouteAlternative(RoutePreference preference, Seq<PathResult> sourceSegments, String signature){
-            this.preference = preference;
-            this.signature = signature;
-            for(PathResult segment : sourceSegments){
-                this.segments.add(segment.copy());
-            }
         }
     }
 

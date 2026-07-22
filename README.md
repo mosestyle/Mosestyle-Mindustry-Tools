@@ -49,39 +49,6 @@ Routers, Sorters, gates, Duct Routers, and compatible one-tile transport connect
 
 Selecting a tile that already uses the target tier is allowed: it remains part of the scan and connects older sections that still need replacement. Upgrades and downgrades both work, while special transport blocks are preserved rather than redesigned.
 
-## Version 0.9.7 highlights
-
-### Alternative route previews
-
-After you place Point A and Point B, Auto Route now calculates several genuinely different valid previews using its existing route scorers:
-
-- **Shortest** — prioritizes the smallest tile count.
-- **Straightest** — accepts a slightly longer path to reduce corners.
-- **Least interference** — keeps farther from existing buildings, plans, and transport crossings where practical.
-
-When at least two different routes are available, a compact selector appears below **Undo / Clear / Build**:
-
-```text
-[◀] Route 1/3 • Least interference [▶]
-```
-
-Tap the arrows to change the highlighted map preview. Nothing is added to the build queue until you press **Build**. Identical results are removed automatically, so some routes may show 1/2 instead of 1/3, and the selector stays hidden when every scoring mode produces the same route.
-
-The selected alternative becomes the active **Route: Short / Straight / Clean** preference. Alternatives are refreshed after waypoint editing, forbidden-zone changes, ore or bridge option changes, Undo, and changes to the player's existing build queue.
-
-### Revised extra-compact music layout
-
-The narrow 2x2 player now uses the requested control order and slightly more vertical room:
-
-```text
-[Move] Current track…
-   [Play/Pause] [Shuffle icon]
-   [Previous]   [Next]
-       ─────●──── 75%
-```
-
-The extra spacing keeps the volume slider below the second control row instead of overlapping the Next button. The optional wider single-row layout remains unchanged.
-
 ## Version 0.9.6 highlights
 
 ### Compact custom music player

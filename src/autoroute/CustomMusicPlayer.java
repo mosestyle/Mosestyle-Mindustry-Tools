@@ -152,7 +152,7 @@ public class CustomMusicPlayer{
     private void buildPlayerPanel(){
         boolean compactGrid = Core.settings.getBool(compactControlsSetting, true);
         final float contentWidth = compactGrid ? 112f : 160f;
-        final float controlHeight = compactGrid ? 70f : 32f;
+        final float controlHeight = compactGrid ? 64f : 32f;
 
         playerPanel = new Table(Styles.black6);
         playerPanel.margin(4f);
@@ -189,48 +189,29 @@ public class CustomMusicPlayer{
         playerPanel.row();
 
         Table controls = new Table();
-        controls.defaults().size(32f).pad(compactGrid ? 1f : 0f);
+        controls.defaults().size(32f).pad(0f);
+
+        controls.button(Icon.left, Styles.cleari, this::previousTrack)
+            .size(32f);
+
+        playPauseButton = controls.button(Icon.play, Styles.cleari, this::togglePlayPause)
+            .size(32f)
+            .get();
+
+        if(compactGrid) controls.row();
+
+        controls.button(Icon.right, Styles.cleari, () -> nextTrack(false))
+            .size(32f);
 
         TextureRegionDrawable shuffleIcon = new TextureRegionDrawable(
             Core.atlas.find("mindustry-auto-route-shuffle")
         );
+        shuffleButton = controls.button(shuffleIcon, Styles.emptyTogglei, this::toggleShuffle)
+            .size(32f)
+            .get();
+        shuffleButton.resizeImage(18f);
 
-        if(compactGrid){
-            // Extra-compact order requested for portrait/side placement:
-            // [Play/Pause] [Shuffle]
-            // [Previous]   [Next]
-            playPauseButton = controls.button(Icon.play, Styles.cleari, this::togglePlayPause)
-                .size(32f)
-                .get();
-            shuffleButton = controls.button(shuffleIcon, Styles.emptyTogglei, this::toggleShuffle)
-                .size(32f)
-                .get();
-            shuffleButton.resizeImage(18f);
-
-            controls.row();
-            controls.button(Icon.left, Styles.cleari, this::previousTrack)
-                .size(32f);
-            controls.button(Icon.right, Styles.cleari, () -> nextTrack(false))
-                .size(32f);
-        }else{
-            controls.button(Icon.left, Styles.cleari, this::previousTrack)
-                .size(32f);
-            playPauseButton = controls.button(Icon.play, Styles.cleari, this::togglePlayPause)
-                .size(32f)
-                .get();
-            controls.button(Icon.right, Styles.cleari, () -> nextTrack(false))
-                .size(32f);
-            shuffleButton = controls.button(shuffleIcon, Styles.emptyTogglei, this::toggleShuffle)
-                .size(32f)
-                .get();
-            shuffleButton.resizeImage(18f);
-        }
-
-        playerPanel.add(controls)
-            .width(contentWidth)
-            .height(controlHeight)
-            .padBottom(compactGrid ? 2f : 0f)
-            .center();
+        playerPanel.add(controls).width(contentWidth).height(controlHeight).center();
         playerPanel.row();
 
         Table volume = new Table();

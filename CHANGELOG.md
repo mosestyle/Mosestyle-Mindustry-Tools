@@ -1,16 +1,5 @@
 # Changelog
 
-## 0.9.7
-
-- Added **alternative route previews** for normal Auto Route building. After Point B is selected, the mod calculates the current route preference plus the other Short, Straight, and Clean scoring modes.
-- Added compact left/right preview arrows directly below Undo, Clear, and Build. The label shows the active preview, such as **Route 1/3 • Least interference**.
-- Cycling the arrows changes only the preview; nothing is queued until **Build** is pressed. The selected preview also updates the normal Route preference setting.
-- Deduplicated identical results, so the selector only shows alternatives that genuinely change the route geometry or bridge layout.
-- Recalculates alternatives after waypoint moves, forbidden-tile edits, bridge/ore option changes, build-queue changes, and Undo operations.
-- Added an **R1/3**-style indicator to the compact/collapsed route status when multiple previews are available.
-- Reordered the extra-compact music controls to **Play/Pause + Shuffle** on the first row and **Previous + Next** on the second row.
-- Increased the extra-compact controls area slightly and added bottom spacing so the volume slider no longer overlaps the Next button.
-
 ## 0.9.6
 
 - Added an **Extra-compact 2x2 music controls** setting, enabled by default, which arranges Previous and Play/Pause above Next and Shuffle.
