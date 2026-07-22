@@ -46,6 +46,7 @@ public class CustomMusicPlayer{
     public static final String shuffleSetting = "mindustry-auto-route-custom-music-shuffle";
     public static final String repeatSetting = "mindustry-auto-route-custom-music-repeat";
     public static final String showControlsSetting = "mindustry-auto-route-custom-music-controls";
+    public static final String compactControlsSetting = "mindustry-auto-route-custom-music-compact-controls";
     public static final String muteOfficialSetting = "mindustry-auto-route-custom-music-mute-official";
 
     private static final String currentTrackSetting = "mindustry-auto-route-custom-music-current-track";
@@ -119,6 +120,7 @@ public class CustomMusicPlayer{
         table.pref(new SectionSetting("mindustry-auto-route-custom-music-section"));
         table.checkPref(enabledSetting, false, this::onEnabledChanged);
         table.checkPref(showControlsSetting, true, value -> refreshPanelVisibility());
+        table.checkPref(compactControlsSetting, true, value -> Core.app.post(this::rebuildPlayerPanel));
         table.checkPref(muteOfficialSetting, true, value -> applyOfficialMusicMuteState());
         table.checkPref(shuffleSetting, false, value -> refreshControlState());
         table.checkPref(repeatSetting, true);
@@ -148,7 +150,9 @@ public class CustomMusicPlayer{
     }
 
     private void buildPlayerPanel(){
-        final float contentWidth = 160f;
+        boolean compactGrid = Core.settings.getBool(compactControlsSetting, true);
+        final float contentWidth = compactGrid ? 112f : 160f;
+        final float controlHeight = compactGrid ? 64f : 32f;
 
         playerPanel = new Table(Styles.black6);
         playerPanel.margin(4f);
@@ -176,7 +180,7 @@ public class CustomMusicPlayer{
         trackLabel.setEllipsis(true);
         trackLabel.setWrap(false);
         header.add(trackLabel)
-            .width(130f)
+            .width(contentWidth - 30f)
             .height(28f)
             .left()
             .padLeft(2f);
@@ -194,6 +198,8 @@ public class CustomMusicPlayer{
             .size(32f)
             .get();
 
+        if(compactGrid) controls.row();
+
         controls.button(Icon.right, Styles.cleari, () -> nextTrack(false))
             .size(32f);
 
@@ -205,7 +211,7 @@ public class CustomMusicPlayer{
             .get();
         shuffleButton.resizeImage(18f);
 
-        playerPanel.add(controls).width(contentWidth).height(32f).center();
+        playerPanel.add(controls).width(contentWidth).height(controlHeight).center();
         playerPanel.row();
 
         Table volume = new Table();
@@ -218,16 +224,34 @@ public class CustomMusicPlayer{
             Core.settings.put(volumeSetting, value);
             applyCustomVolume();
         });
-        volume.add(volumeSlider).width(120f).height(28f);
+        volume.add(volumeSlider).width(compactGrid ? 76f : 120f).height(28f);
 
         volumeLabel = new Label(volumeText(), Styles.outlineLabel);
-        volume.add(volumeLabel).width(40f).right();
+        volume.add(volumeLabel).width(compactGrid ? 36f : 40f).right();
 
         playerPanel.add(volume).width(contentWidth).height(30f).left();
         playerPanel.row();
 
         Vars.ui.hudGroup.addChild(playerPanel);
         playerPanel.pack();
+    }
+
+    private void rebuildPlayerPanel(){
+        if(playerPanel != null){
+            savePanelPosition();
+            playerPanel.remove();
+        }
+
+        playerPanel = null;
+        playPauseButton = null;
+        shuffleButton = null;
+        volumeSlider = null;
+        volumeLabel = null;
+        panelPositionReady = false;
+        lastSceneWidth = -1f;
+        lastSceneHeight = -1f;
+
+        buildPlayerPanel();
     }
 
     private boolean shouldShowControls(){

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.6
+
+- Added an **Extra-compact 2x2 music controls** setting, enabled by default, which arranges Previous and Play/Pause above Next and Shuffle.
+- Reduced the extra-compact player content width from 160 to 112 UI units so it fits more comfortably along the right or left edge of portrait Android screens.
+- Kept the v0.9.5 single-row player as an optional layout; disabling the new setting restores it immediately.
+- Rebuilds and clamps the movable player safely when switching layouts while retaining the saved portrait/landscape center position.
+- Kept true title ellipsis, the shuffle icon, independent volume, and all existing playback behavior in both layouts.
+
 ## 0.9.5
 
 - Made the movable custom music player substantially narrower so it fits more comfortably along the right side of portrait Android screens.

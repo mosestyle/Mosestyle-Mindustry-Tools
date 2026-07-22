@@ -49,7 +49,7 @@ Routers, Sorters, gates, Duct Routers, and compatible one-tile transport connect
 
 Selecting a tile that already uses the target tier is allowed: it remains part of the scan and connects older sections that still need replacement. Upgrades and downgrades both work, while special transport blocks are preserved rather than redesigned.
 
-## Version 0.9.5 highlights
+## Version 0.9.6 highlights
 
 ### Compact custom music player
 
@@ -59,6 +59,7 @@ Open **Settings → Mosestyle Tools** to configure the new custom player:
 - **Import music**
 - **Manage music library**
 - **Show custom music controls**
+- **Extra-compact 2x2 music controls**
 - **Shuffle custom music**
 - **Repeat custom playlist**
 - **Custom music volume**
@@ -66,7 +67,16 @@ Open **Settings → Mosestyle Tools** to configure the new custom player:
 
 Supported imported formats are **MP3, OGG Vorbis, WAV, and FLAC**. On Android, **Import music** uses Mindustry's multi-file picker. Selected files are copied into a private Mosestyle library, so they remain available without repeatedly granting document access. On desktop, **Open music folder** opens the private library directory directly.
 
-The movable in-game player uses a narrow right-side-friendly layout:
+The movable in-game player now offers two layouts. **Extra-compact 2x2 music controls** is enabled by default for a narrow side-of-screen panel:
+
+```text
+[Move] Current track…
+   [Previous] [Play/Pause]
+   [Next]     [Shuffle icon]
+       ─────●──── 75%
+```
+
+Disable that setting to restore the wider single-row layout from v0.9.5:
 
 ```text
 [Move] Current track…
@@ -74,7 +84,7 @@ The movable in-game player uses a narrow right-side-friendly layout:
        ─────●──── 75%
 ```
 
-Long song names are clipped inside the panel and end with an ellipsis instead of drawing beyond the overlay. The word **Shuffle** has been replaced by a compact toggle icon, and the unnecessary **Vol** label has been removed to reduce the panel width.
+Switching layouts rebuilds the player immediately while keeping its saved portrait or landscape position. Long song names remain clipped inside the panel and end with an ellipsis instead of drawing beyond the overlay. The word **Shuffle** remains replaced by a compact toggle icon, and the unnecessary **Vol** label stays removed.
 
 The custom volume is independent from Mindustry's normal soundtrack volume. When **Mute official music automatically** is enabled, the mod temporarily sets the official music volume to zero only while the custom player has an active track, then restores the player's previous official volume when custom playback is disabled or the game exits normally.
 
