@@ -31,6 +31,7 @@ import mindustry.world.blocks.distribution.ItemBridge;
 import mindustry.world.blocks.liquid.Conduit;
 import mindustry.type.Category;
 import mindustry.world.meta.BlockFlag;
+import mindustry.world.meta.BlockGroup;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -117,6 +118,8 @@ public class AutoRouteMod extends Mod{
     private boolean searchTimedOut;
     private boolean searchLimitHit;
     private Block routeBlock;
+    private Block upgradeSourceBlock;
+    private TransportFamily upgradeSourceFamily;
     private Point2 upgradeAnchor;
     private Point2 forbiddenAnchor;
     private Point2 forbiddenStrokeStart;
@@ -184,6 +187,11 @@ public class AutoRouteMod extends Mod{
             }else if(editMode){
                 handleRouteEditTap(event.tile);
             }else{
+                if(routeBlock == null && isSupportedRouteBlock(event.tile.block())){
+                    routeBlock = event.tile.block();
+                    showToast("Using " + routeBlock.localizedName + ". Tap Point B or select another transport block from the build menu.", 4f);
+                    rebuildRoutePanel();
+                }
                 addWaypoint(event.tile);
             }
         });
@@ -450,6 +458,7 @@ public class AutoRouteMod extends Mod{
     }
 
     private void updateRoutePanel(){
+        captureSelectedRouteBlock();
         updatePanelPlacement();
 
         boolean preferredCompactLayout = Core.settings.getBool(compactPanelSetting, true);
@@ -978,14 +987,19 @@ public class AutoRouteMod extends Mod{
     }
 
     private String statusText(){
-        if(routeBlock == null) return "[accent]Auto Route[]";
         if(upgradeMode){
             if(upgradeAnchor == null){
-                return "[accent]Upgrade to " + routeBlock.localizedName + "[]\nTap an existing line";
+                String target = routeBlock == null ? "Choose replacement" : "Upgrade to " + routeBlock.localizedName;
+                return "[accent]" + target + "[]\nTap an existing line";
+            }
+            if(routeBlock == null || upgradeSourceFamily == null ||
+                transportFamily(routeBlock) != upgradeSourceFamily){
+                return "[accent]Line selected[]\nChoose a replacement block";
             }
             return "[accent]Upgrade to " + routeBlock.localizedName + "[]\n" +
                 upgradePlans.size + " replacements • " + upgradePreservedSpecials + " kept";
         }
+        if(routeBlock == null) return "[accent]Auto Route[]\nSelect a transport block";
         if(forbidMode){
             String action = forbiddenDrawMarks ? "Mark" : "Erase";
             String hint = forbiddenAnchor == null ? "Tap Point A or drag" : "Tap next point or drag";
@@ -1022,31 +1036,30 @@ public class AutoRouteMod extends Mod{
         if(Vars.state.isMenu() || Vars.control == null || Vars.control.input == null) return;
 
         Block selected = Vars.control.input.block;
-        if(!isSupportedRouteBlock(selected)){
-            showToast("Select a 1x1 conveyor, duct, or liquid conduit first, then tap the Auto Route icon.", 4f);
-            return;
-        }
-
-        routeBlock = selected;
+        routeBlock = isSupportedRouteBlock(selected) ? selected : null;
         clearRoute();
+        clearUpgradeSelection();
         active = true;
         forbidMode = false;
         editMode = false;
         upgradeMode = false;
-        upgradeAnchor = null;
         selectedWaypointIndex = -1;
         forbiddenAnchor = null;
         resetForbiddenStroke();
 
         // Clear transient vanilla placement previews before snapshotting the
-        // real construction queue. Stale linePlans could make an identical
-        // Point A -> Point B route fail once and then work after reopening.
+        // real construction queue. A new supported block selected while this
+        // panel is open is captured by captureSelectedRouteBlock().
         Vars.control.input.block = null;
         Vars.control.input.linePlans.clear();
         refreshQueuedPlanSnapshot();
         routePanel.toFront();
 
-        showToast("Tap Point A, then Point B. Add more taps for extra waypoints.", 4f);
+        if(routeBlock == null){
+            showToast("Auto Route is open. Select a conveyor, duct, or conduit from the build menu, or enable Upgrade line and tap an existing transport.", 6f);
+        }else{
+            showToast("Tap Point A, then Point B. Add more taps for extra waypoints.", 4f);
+        }
     }
 
     private void stopRouting(boolean restoreBlock){
@@ -1054,7 +1067,7 @@ public class AutoRouteMod extends Mod{
         forbidMode = false;
         editMode = false;
         upgradeMode = false;
-        upgradeAnchor = null;
+        clearUpgradeSelection();
         selectedWaypointIndex = -1;
         forbiddenAnchor = null;
         resetForbiddenStroke();
@@ -1070,7 +1083,7 @@ public class AutoRouteMod extends Mod{
         forbidMode = false;
         editMode = false;
         upgradeMode = false;
-        upgradeAnchor = null;
+        clearUpgradeSelection();
         selectedWaypointIndex = -1;
         forbiddenAnchor = null;
         resetForbiddenStroke();
@@ -1144,18 +1157,48 @@ public class AutoRouteMod extends Mod{
 
         if(upgradeMode){
             showToast(
-                "Upgrade mode enabled. Tap any existing compatible transport tile to preview that connected line.",
-                5f
+                "Upgrade mode enabled. Tap an existing transport line, then choose its replacement block before or after selecting the line.",
+                6f
             );
         }
         rebuildOptionsTable();
     }
 
+    private void captureSelectedRouteBlock(){
+        if(!active || Vars.control == null || Vars.control.input == null) return;
+
+        Block selected = Vars.control.input.block;
+        if(!isSupportedRouteBlock(selected)) return;
+
+        // Remember the player's latest build-menu choice, then return input to
+        // map-tap mode so it does not place a vanilla drag line underneath the
+        // Auto Route panel.
+        Vars.control.input.block = null;
+        Vars.control.input.linePlans.clear();
+
+        if(selected == routeBlock) return;
+        routeBlock = selected;
+        pathCache.clear();
+
+        if(upgradeMode){
+            if(upgradeAnchor != null){
+                rebuildUpgradePreviewFromAnchor(true);
+            }else{
+                showToast("Replacement selected: " + routeBlock.localizedName + ". Tap any existing compatible line.", 4f);
+            }
+        }else{
+            clearRoute();
+            showToast("Using " + routeBlock.localizedName + ". Tap Point A, then Point B.", 4f);
+        }
+
+        Core.app.post(this::rebuildRoutePanel);
+    }
+
     private void selectUpgradeLine(Tile tile){
-        if(!upgradeMode || routeBlock == null || tile == null) return;
-        if(!isUpgradeableTransportTile(tile)){
+        if(!upgradeMode || tile == null) return;
+        if(tile.build == null || tile.team() != Vars.player.team() || !isSupportedRouteBlock(tile.block())){
             showToast(
-                "Tap an existing friendly " + upgradeFamilyName() + " tile. Routers, junctions and bridges are preserved, not selected directly.",
+                "Tap an existing friendly conveyor, duct, or liquid conduit. Special blocks are followed automatically but are not selected directly.",
                 5f
             );
             return;
@@ -1163,24 +1206,76 @@ public class AutoRouteMod extends Mod{
 
         clearUpgradeSelection();
         upgradeAnchor = new Point2(tile.x, tile.y);
-        scanUpgradeLine(tile);
+        upgradeSourceBlock = tile.block();
+        upgradeSourceFamily = transportFamily(upgradeSourceBlock);
 
-        if(upgradePlans.isEmpty()){
+        if(routeBlock == null){
             showToast(
-                "This connected line already uses " + routeBlock.localizedName + ", or its remaining blocks cannot be replaced.",
-                4f
-            );
-        }else{
-            showToast(
-                "Found " + upgradePlans.size + " block" + (upgradePlans.size == 1 ? "" : "s") +
-                    " to replace. " + upgradePreservedSpecials + " special block" +
-                    (upgradePreservedSpecials == 1 ? " was" : "s were") + " preserved.",
+                "Line selected. Now choose the replacement conveyor, duct, or conduit from the build menu.",
                 5f
             );
+            rebuildRoutePanel();
+            return;
         }
+
+        if(transportFamily(routeBlock) != upgradeSourceFamily){
+            showToast(
+                "This line is a " + upgradeFamilyName() + " line. Choose a compatible replacement from the same transport family.",
+                5f
+            );
+            rebuildRoutePanel();
+            return;
+        }
+
+        rebuildUpgradePreviewFromAnchor(false);
+    }
+
+    private void rebuildUpgradePreviewFromAnchor(boolean announceTarget){
+        if(upgradeAnchor == null) return;
+
+        Tile anchorTile = Vars.world.tile(upgradeAnchor.x, upgradeAnchor.y);
+        if(anchorTile == null || anchorTile.build == null || anchorTile.team() != Vars.player.team() ||
+            transportFamily(anchorTile.block()) != upgradeSourceFamily){
+            clearUpgradeSelection();
+            showToast("The selected transport line no longer exists.", 4f);
+            return;
+        }
+
+        // The line may have partially changed while the preview was open.
+        upgradeSourceBlock = anchorTile.block();
+        clearUpgradePreview();
+
+        if(routeBlock == null || transportFamily(routeBlock) != upgradeSourceFamily){
+            showToast("Choose a compatible replacement block from the build menu.", 4f);
+            rebuildRoutePanel();
+            return;
+        }
+
+        scanUpgradeLine(anchorTile);
+        showUpgradeScanResult(announceTarget);
+        rebuildRoutePanel();
+    }
+
+    private void showUpgradeScanResult(boolean announceTarget){
+        if(upgradePlans.isEmpty()){
+            showToast(
+                "No replaceable blocks were found. This connected line may already use " + routeBlock.localizedName + ", or the remaining tiles cannot be replaced.",
+                5f
+            );
+            return;
+        }
+
+        String prefix = announceTarget ? "Replacement changed to " + routeBlock.localizedName + ". " : "";
+        showToast(
+            prefix + "Found " + upgradePlans.size + " block" + (upgradePlans.size == 1 ? "" : "s") +
+                " to replace. " + upgradePreservedSpecials + " router, bridge, junction, or other special block" +
+                (upgradePreservedSpecials == 1 ? " was" : "s were") + " preserved and followed.",
+            6f
+        );
     }
 
     private void scanUpgradeLine(Tile start){
+        if(routeBlock == null || upgradeSourceFamily == null) return;
         refreshQueuedPlanSnapshot();
 
         Seq<Tile> open = new Seq<>();
@@ -1194,46 +1289,68 @@ public class AutoRouteMod extends Mod{
 
         while(cursor < open.size && visited.size < limit){
             Tile current = open.get(cursor++);
-            int key = tileKey(current.x, current.y);
-            upgradeKeys.add(key);
 
-            BuildPlan queued = queuedPlansByKey.get(key);
-            boolean alreadyQueued = queued != null && queued.block == routeBlock;
-            if(current.block() != routeBlock && !alreadyQueued){
-                int rotation = current.build == null ? 0 : current.build.rotation;
-                BuildPlan plan = new BuildPlan(current.x, current.y, rotation, routeBlock);
-                if(Build.validPlace(routeBlock, Vars.player.team(), current.x, current.y, rotation)){
-                    upgradePlans.add(plan);
-                }else{
-                    skipped++;
-                }
-            }
+            if(isUpgradeableTransportTile(current)){
+                int key = tileKey(current.x, current.y);
+                upgradeKeys.add(key);
 
-            for(int direction = 0; direction < 4; direction++){
-                Tile adjacent = Vars.world.tile(
-                    current.x + dirX[direction],
-                    current.y + dirY[direction]
-                );
-                if(adjacent == null || adjacent.build == null || adjacent.team() != Vars.player.team()) continue;
-
-                if(isUpgradeableTransportTile(adjacent)){
-                    if(upgradeBlocksDirectlyConnected(current, adjacent)){
-                        enqueueUpgradeTile(adjacent, open, visited);
+                BuildPlan queued = queuedPlansByKey.get(key);
+                boolean alreadyQueued = queued != null && queued.block == routeBlock;
+                if(current.block() != routeBlock && !alreadyQueued){
+                    int rotation = current.build == null ? 0 : current.build.rotation;
+                    BuildPlan plan = new BuildPlan(current.x, current.y, rotation, routeBlock);
+                    if(routeBlock.canReplace(current.block()) &&
+                        Build.validPlace(routeBlock, Vars.player.team(), current.x, current.y, rotation)){
+                        upgradePlans.add(plan);
+                    }else{
+                        skipped++;
                     }
-                    continue;
                 }
 
-                if(isCompatibleUpgradeJunction(adjacent)){
-                    addAcrossUpgradeJunction(current, adjacent, direction, open, visited);
-                    continue;
-                }
+                for(int direction = 0; direction < 4; direction++){
+                    Tile adjacent = Vars.world.tile(
+                        current.x + dirX[direction],
+                        current.y + dirY[direction]
+                    );
+                    if(adjacent == null || adjacent.build == null || adjacent.team() != Vars.player.team()) continue;
 
-                if(isCompatibleUpgradeBridge(adjacent)){
-                    addAcrossUpgradeBridge(current, adjacent, open, visited);
+                    if(isUpgradeableTransportTile(adjacent)){
+                        if(upgradeBlocksDirectlyConnected(current, adjacent)){
+                            enqueueUpgradeTile(adjacent, open, visited);
+                        }
+                        continue;
+                    }
+
+                    if(isCompatibleUpgradeJunction(adjacent)){
+                        addAcrossUpgradeJunction(current, adjacent, direction, open, visited);
+                        continue;
+                    }
+
+                    if(isCompatibleUpgradeBridge(adjacent)){
+                        addAcrossUpgradeBridge(current, adjacent, open, visited);
+                        continue;
+                    }
+
+                    if(isCompatibleUpgradeConnector(adjacent)){
+                        addAcrossUpgradeConnector(current, adjacent, open, visited);
+                    }
                 }
-                // Routers, sorters, factories, cores and other branching blocks
-                // deliberately stop the scan so a copper line does not absorb a
-                // neighboring lead network through a shared distribution block.
+            }else if(isCompatibleUpgradeConnector(current)){
+                // A router/sorter/gate can join several branches. Preserve the
+                // special block and follow every directly attached compatible
+                // transport branch so the preview shows the complete connected
+                // network instead of stopping at the router.
+                markUpgradeSpecial(current);
+                for(int direction = 0; direction < 4; direction++){
+                    Tile adjacent = Vars.world.tile(current.x + dirX[direction], current.y + dirY[direction]);
+                    if(isUpgradeableTransportTile(adjacent)){
+                        enqueueUpgradeTile(adjacent, open, visited);
+                    }else if(isCompatibleUpgradeBridge(adjacent)){
+                        addAcrossUpgradeBridge(current, adjacent, open, visited);
+                    }else if(isCompatibleUpgradeConnector(adjacent)){
+                        enqueueUpgradeConnector(adjacent, open, visited);
+                    }
+                }
             }
         }
 
@@ -1261,9 +1378,17 @@ public class AutoRouteMod extends Mod{
         open.add(tile);
     }
 
+    private void enqueueUpgradeConnector(Tile tile, Seq<Tile> open, IntSet visited){
+        if(tile == null || !isCompatibleUpgradeConnector(tile)) return;
+        int key = tileKey(tile.x, tile.y);
+        if(visited.contains(key)) return;
+        visited.add(key);
+        open.add(tile);
+    }
+
     private boolean isUpgradeableTransportTile(Tile tile){
         return tile != null && tile.build != null && tile.team() == Vars.player.team() &&
-            isCompatibleTransport(tile.block());
+            upgradeSourceFamily != null && transportFamily(tile.block()) == upgradeSourceFamily;
     }
 
     private boolean upgradeBlocksDirectlyConnected(Tile first, Tile second){
@@ -1279,8 +1404,9 @@ public class AutoRouteMod extends Mod{
 
     private boolean isCompatibleUpgradeJunction(Tile tile){
         if(tile == null || tile.build == null || tile.team() != Vars.player.team()) return false;
-        Block replacement = junctionReplacement();
-        return replacement != null && tile.block() == replacement;
+        Block sourceReplacement = junctionReplacementFor(upgradeSourceBlock);
+        Block targetReplacement = junctionReplacementFor(routeBlock);
+        return tile.block() == sourceReplacement || tile.block() == targetReplacement;
     }
 
     private void addAcrossUpgradeJunction(Tile current, Tile junction, int direction,
@@ -1306,10 +1432,10 @@ public class AutoRouteMod extends Mod{
     }
 
     private boolean isCompatibleUpgradeBridge(Tile tile){
-        if(tile == null || tile.build == null || tile.team() != Vars.player.team()) return false;
+        if(tile == null || tile.build == null || tile.team() != Vars.player.team() || upgradeSourceFamily == null) return false;
         Block block = tile.block();
         if(!(block instanceof ItemBridge) && !(block instanceof DirectionBridge)) return false;
-        return routeBlock instanceof Conduit ? block.hasLiquids : block.hasItems;
+        return upgradeSourceFamily == TransportFamily.conduit ? block.hasLiquids : block.hasItems;
     }
 
     private void addAcrossUpgradeBridge(Tile current, Tile endpoint,
@@ -1361,16 +1487,51 @@ public class AutoRouteMod extends Mod{
             destination.x + dirX[direction],
             destination.y + dirY[direction]
         );
-        if(!isUpgradeableTransportTile(input) || !isUpgradeableTransportTile(output)) return;
-        if(input.build.rotation != direction || output.build.rotation != direction) return;
 
-        boolean currentIsInput = current.x == input.x && current.y == input.y;
-        boolean currentIsOutput = current.x == output.x && current.y == output.y;
+        boolean currentIsInput = current != null && input != null && current.x == input.x && current.y == input.y;
+        boolean currentIsOutput = current != null && output != null && current.x == output.x && current.y == output.y;
         if(!currentIsInput && !currentIsOutput) return;
 
         markUpgradeSpecial(source);
         markUpgradeSpecial(destination);
-        enqueueUpgradeTile(currentIsInput ? output : input, open, visited);
+
+        Tile continuation = currentIsInput ? output : input;
+        if(isUpgradeableTransportTile(continuation)){
+            enqueueUpgradeTile(continuation, open, visited);
+        }else if(isCompatibleUpgradeConnector(continuation)){
+            enqueueUpgradeConnector(continuation, open, visited);
+        }
+    }
+
+    private boolean isCompatibleUpgradeConnector(Tile tile){
+        if(tile == null || tile.build == null || tile.team() != Vars.player.team() || upgradeSourceFamily == null) return false;
+        Block block = tile.block();
+        if(block.size != 1 || block instanceof Conveyor || block instanceof Duct || block instanceof Conduit ||
+            block instanceof ItemBridge || block instanceof DirectionBridge || isCompatibleUpgradeJunction(tile)){
+            return false;
+        }
+
+        if(upgradeSourceFamily == TransportFamily.conduit){
+            return block.hasLiquids && block.outputsLiquid;
+        }
+
+        // Router, sorter, overflow/underflow gate, duct router, and compatible
+        // modded one-tile transportation nodes all use this group.
+        return block.hasItems && block.group == BlockGroup.transportation;
+    }
+
+    private void addAcrossUpgradeConnector(Tile current, Tile connector,
+                                           Seq<Tile> open, IntSet visited){
+        markUpgradeSpecial(connector);
+        enqueueUpgradeConnector(connector, open, visited);
+
+        for(int direction = 0; direction < 4; direction++){
+            Tile adjacent = Vars.world.tile(connector.x + dirX[direction], connector.y + dirY[direction]);
+            if(adjacent == null || adjacent == current) continue;
+            if(isUpgradeableTransportTile(adjacent)){
+                enqueueUpgradeTile(adjacent, open, visited);
+            }
+        }
     }
 
     private void markUpgradeSpecial(Tile tile){
@@ -1381,18 +1542,34 @@ public class AutoRouteMod extends Mod{
         upgradeSpecialTiles.add(new Point2(tile.x, tile.y));
     }
 
+    private TransportFamily transportFamily(Block block){
+        if(block instanceof Conveyor) return TransportFamily.conveyor;
+        if(block instanceof Duct) return TransportFamily.duct;
+        if(block instanceof Conduit) return TransportFamily.conduit;
+        return null;
+    }
+
+    private Block junctionReplacementFor(Block block){
+        if(block instanceof Conveyor conveyor) return conveyor.junctionReplacement;
+        if(block instanceof Duct duct) return duct.junctionReplacement;
+        if(block instanceof Conduit conduit) return conduit.junctionReplacement;
+        return null;
+    }
+
     private String upgradeFamilyName(){
-        if(routeBlock instanceof Conveyor) return "conveyor";
-        if(routeBlock instanceof Duct) return "duct";
-        if(routeBlock instanceof Conduit) return "conduit";
+        TransportFamily family = upgradeSourceFamily != null ? upgradeSourceFamily : transportFamily(routeBlock);
+        if(family == TransportFamily.conveyor) return "conveyor";
+        if(family == TransportFamily.duct) return "duct";
+        if(family == TransportFamily.conduit) return "conduit";
         return "transport";
     }
 
     private boolean isUpgradePlanUsable(BuildPlan plan){
-        if(plan == null || plan.block != routeBlock) return false;
+        if(plan == null || routeBlock == null || plan.block != routeBlock) return false;
         Tile tile = Vars.world.tile(plan.x, plan.y);
         if(!isUpgradeableTransportTile(tile) || tile.block() == routeBlock) return false;
-        return Build.validPlace(routeBlock, Vars.player.team(), plan.x, plan.y, plan.rotation);
+        return routeBlock.canReplace(tile.block()) &&
+            Build.validPlace(routeBlock, Vars.player.team(), plan.x, plan.y, plan.rotation);
     }
 
     private void commitUpgradeLine(){
@@ -1400,8 +1577,12 @@ public class AutoRouteMod extends Mod{
             showToast("Tap an existing transport line before pressing Build.", 3f);
             return;
         }
+        if(routeBlock == null || upgradeSourceFamily == null || transportFamily(routeBlock) != upgradeSourceFamily){
+            showToast("Choose a compatible replacement block from the build menu before pressing Build.", 4f);
+            return;
+        }
         if(upgradePlans.isEmpty()){
-            showToast("There are no transport blocks to replace on this selected line.", 3f);
+            rebuildUpgradePreviewFromAnchor(false);
             return;
         }
         if(Vars.player == null || Vars.player.unit() == null){
@@ -1411,16 +1592,8 @@ public class AutoRouteMod extends Mod{
 
         for(BuildPlan plan : upgradePlans){
             if(!isUpgradePlanUsable(plan)){
-                Tile anchorTile = Vars.world.tile(upgradeAnchor.x, upgradeAnchor.y);
-                if(isUpgradeableTransportTile(anchorTile)){
-                    clearUpgradeSelection();
-                    upgradeAnchor = new Point2(anchorTile.x, anchorTile.y);
-                    scanUpgradeLine(anchorTile);
-                    showToast("The line changed. The upgrade preview was refreshed; review it and tap Build again.", 5f);
-                }else{
-                    clearUpgradeSelection();
-                    showToast("The selected transport line no longer exists.", 4f);
-                }
+                rebuildUpgradePreviewFromAnchor(false);
+                showToast("The line changed. The upgrade preview was refreshed; review it and tap Build again.", 5f);
                 return;
             }
         }
@@ -1432,19 +1605,25 @@ public class AutoRouteMod extends Mod{
 
         showToast(
             "Queued " + queued + " replacement" + (queued == 1 ? "" : "s") +
-                " to " + routeBlock.localizedName + ". Special transport blocks were preserved.",
-            5f
+                " to " + routeBlock.localizedName + ". Routers, bridges, junctions, and other special transport blocks were preserved.",
+            6f
         );
         clearUpgradeSelection();
     }
 
-    private void clearUpgradeSelection(){
-        upgradeAnchor = null;
+    private void clearUpgradePreview(){
         upgradePlans.clear();
         upgradeSpecialTiles.clear();
         upgradeKeys.clear();
         upgradeSpecialKeys.clear();
         upgradePreservedSpecials = 0;
+    }
+
+    private void clearUpgradeSelection(){
+        upgradeAnchor = null;
+        upgradeSourceBlock = null;
+        upgradeSourceFamily = null;
+        clearUpgradePreview();
     }
 
     private void handleRouteEditTap(Tile tile){
@@ -1703,7 +1882,10 @@ public class AutoRouteMod extends Mod{
     }
 
     private void addWaypoint(Tile tile){
-        if(routeBlock == null) return;
+        if(routeBlock == null){
+            showToast("Select a conveyor, duct, or conduit from the build menu first.", 3f);
+            return;
+        }
 
         refreshQueuedPlanSnapshot();
         Point2 point = new Point2(tile.x, tile.y);
@@ -1958,9 +2140,12 @@ public class AutoRouteMod extends Mod{
     }
 
     private void commitRoute(){
-        if(routeBlock == null) return;
         if(upgradeMode){
             commitUpgradeLine();
+            return;
+        }
+        if(routeBlock == null){
+            showToast("Select a conveyor, duct, or conduit from the build menu before pressing Build.", 3f);
             return;
         }
         if(waypoints.size < 2){
@@ -3227,6 +3412,10 @@ public class AutoRouteMod extends Mod{
 
     private int tileKey(int x, int y){
         return x + y * Vars.world.width();
+    }
+
+    private enum TransportFamily{
+        conveyor, duct, conduit
     }
 
     private enum OreMode{

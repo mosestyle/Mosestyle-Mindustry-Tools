@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.1
+
+- Auto Route can now be opened without first selecting a conveyor, duct, or conduit.
+- Upgrade Existing Line now accepts the source line and replacement block in either order.
+- Tapping a tile that already uses the target tier no longer blocks the scan; mixed-tier lines continue through that tile and replace the remaining older or different tiers.
+- The active replacement automatically updates when another compatible transport block is selected from the normal build menu while the panel is open.
+- Separated the tapped source family from the replacement target, eliminating stale selection behavior that previously made identical attempts work only after closing and reopening the panel.
+- Extended connected-line scanning through routers, sorters, overflow/underflow gates, duct routers, compatible one-tile transport nodes, Junction lanes, and linked bridges.
+- Preserved special transport blocks while continuing the scan to compatible conveyor, duct, or conduit sections after them.
+- Mixed-tier lines can now be scanned as one network: blocks already matching the target are skipped but still connect the remaining replacements.
+- Kept mobile and desktop scan safety limits and all-at-once build validation.
+
 ## 0.9.0
 
 - Added **Upgrade existing line** mode for conveyor, duct, and conduit families.

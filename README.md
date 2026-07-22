@@ -19,22 +19,22 @@ Repository: https://github.com/mosestyle/Mosestyle-Mindustry-Tools
 
 5. Restart Mindustry when prompted.
 
-## Version 0.9.0 highlights
+## Version 0.9.1 highlights
 
-### Upgrade or downgrade an existing transport line
+### More reliable Upgrade Existing Line mode
 
-You can now replace a complete connected transport lane without manually rebuilding every tile:
+The Auto Route panel can now be opened without selecting a transport block first. Upgrade mode accepts the source line and replacement block in either order:
 
-1. Select the transport block you want to use, such as **Titanium Conveyor**.
-2. Activate Auto Route.
-3. Open **Options** and enable **Upgrade line**.
-4. Tap any ordinary conveyor, duct, or conduit tile on the existing line.
+1. Activate Auto Route at any time.
+2. Open **Options** and enable **Upgrade line**.
+3. Tap any ordinary conveyor, duct, or conduit on the existing line.
+4. Select the desired replacement from the normal build menu, such as **Titanium Conveyor**. You may also select the replacement before tapping the line.
 5. Review the highlighted replacement preview.
-6. Press **Build** to queue every replacement.
+6. Press **Build**.
 
-The feature also works in reverse, for example Titanium Conveyor → Conveyor. Existing blocks that already match the selected target are skipped while still allowing the scan to continue through them.
+Selecting an ordinary Conveyor first no longer locks the upgrade target to Conveyor. The tapped tile identifies the source family, while the latest compatible transport selected from the build menu becomes the replacement. You may tap either an older conveyor or a tile that already uses the target tier; mixed-tier lines continue through matching tiles and replace the remaining blocks. Upgrades and downgrades both work.
 
-Special transport structures are preserved. The detector continues straight through compatible Junctions, Liquid Junctions, and linked bridges, but it does not replace them. Routers, sorters, factories, cores, and other branching blocks act as boundaries so separate material networks are not accidentally upgraded together. Preserved bridge and Junction tiles are highlighted in the preview.
+The detector now follows the connected network through linked bridge pairs, straight Junction lanes, routers, sorters, overflow/underflow gates, duct routers, and compatible one-tile transport nodes. These special blocks are preserved rather than replaced. When a router genuinely branches, all attached compatible branches are highlighted so the preview remains transparent before you press **Build**. Factories, drills, cores, and unrelated storage networks are still boundaries.
 
 ## Version 0.8.2 highlights
 
