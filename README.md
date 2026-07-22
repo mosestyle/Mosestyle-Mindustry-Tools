@@ -49,6 +49,60 @@ Routers, Sorters, gates, Duct Routers, and compatible one-tile transport connect
 
 Selecting a tile that already uses the target tier is allowed: it remains part of the scan and connects older sections that still need replacement. Upgrades and downgrades both work, while special transport blocks are preserved rather than redesigned.
 
+## Version 0.9.8 highlights
+
+### Fast single-route preview restored
+
+Normal Auto Route pathfinding again calculates only the currently selected **Route: Short / Straight / Clean** mode when Point B is placed. This restores the responsive v0.9.6 routing behaviour, particularly for long Android routes.
+
+The experimental v0.9.7 alternative selector was removed because generating three complete pathfinding results could multiply the search time and switching a long preview also required rebuilding a large set of plans. You can still choose **Short**, **Straight**, or **Clean** before drawing the route, but Auto Route no longer calculates the two unused modes automatically.
+
+### v0.9.7 music-player layout retained
+
+The extra-compact music player remains exactly as requested:
+
+```text
+[Move] Current track…
+   [Play/Pause] [Shuffle icon]
+   [Previous]   [Next]
+       ─────●──── 75%
+```
+
+The slightly taller controls area and spacing under the second row remain, so the volume slider does not overlap the Next button.
+
+## Version 0.9.7 highlights
+
+### Alternative route previews
+
+After you place Point A and Point B, Auto Route now calculates several genuinely different valid previews using its existing route scorers:
+
+- **Shortest** — prioritizes the smallest tile count.
+- **Straightest** — accepts a slightly longer path to reduce corners.
+- **Least interference** — keeps farther from existing buildings, plans, and transport crossings where practical.
+
+When at least two different routes are available, a compact selector appears below **Undo / Clear / Build**:
+
+```text
+[◀] Route 1/3 • Least interference [▶]
+```
+
+Tap the arrows to change the highlighted map preview. Nothing is added to the build queue until you press **Build**. Identical results are removed automatically, so some routes may show 1/2 instead of 1/3, and the selector stays hidden when every scoring mode produces the same route.
+
+The selected alternative becomes the active **Route: Short / Straight / Clean** preference. Alternatives are refreshed after waypoint editing, forbidden-zone changes, ore or bridge option changes, Undo, and changes to the player's existing build queue.
+
+### Revised extra-compact music layout
+
+The narrow 2x2 player now uses the requested control order and slightly more vertical room:
+
+```text
+[Move] Current track…
+   [Play/Pause] [Shuffle icon]
+   [Previous]   [Next]
+       ─────●──── 75%
+```
+
+The extra spacing keeps the volume slider below the second control row instead of overlapping the Next button. The optional wider single-row layout remains unchanged.
+
 ## Version 0.9.6 highlights
 
 ### Compact custom music player
