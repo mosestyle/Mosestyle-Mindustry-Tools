@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.2
+
+- Kept Mindustry's normal selected transport block active while Auto Route is open, restoring the yellow build-menu selection border.
+- Added a world-touch placement guard that temporarily suppresses vanilla placement only during map gestures, preventing duplicate blocks while preserving normal build-menu selection.
+- Removed the unnecessary "Auto Route is open..." notification when opening the panel without a selected transport block.
+- Fixed connected-line upgrade scans through standard Junction and Liquid Junction blocks, including mixed-tier or reverse-flow lanes.
+- Junction scans now continue through the opposite side based on the entered lane instead of incorrectly rejecting valid lines because of conveyor rotation.
+- Retained and highlighted routers, linked bridge pairs, junctions, sorters, gates, and compatible transport connectors while following the line beyond them.
+
 ## 0.9.1
 
 - Auto Route can now be opened without first selecting a conveyor, duct, or conduit.

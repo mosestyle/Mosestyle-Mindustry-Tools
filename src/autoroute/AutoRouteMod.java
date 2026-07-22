@@ -28,7 +28,9 @@ import mindustry.world.blocks.distribution.Conveyor;
 import mindustry.world.blocks.distribution.DirectionBridge;
 import mindustry.world.blocks.distribution.Duct;
 import mindustry.world.blocks.distribution.ItemBridge;
+import mindustry.world.blocks.distribution.Junction;
 import mindustry.world.blocks.liquid.Conduit;
+import mindustry.world.blocks.liquid.LiquidJunction;
 import mindustry.type.Category;
 import mindustry.world.meta.BlockFlag;
 import mindustry.world.meta.BlockGroup;
@@ -134,6 +136,9 @@ public class AutoRouteMod extends Mod{
     private int selectedWaypointIndex = -1;
     private boolean searchRetryPass;
     private InputProcessor forbiddenInput;
+    private InputProcessor routePlacementGuard;
+    private boolean routePlacementSuppressed;
+    private Block suppressedSelectedBlock;
     private OreMode oreMode = OreMode.auto;
     private RoutePreference preference = RoutePreference.clean;
 
@@ -178,6 +183,7 @@ public class AutoRouteMod extends Mod{
         enemyHealthBars = new EnemyHealthBars();
         enemyHealthBars.init();
         customMusicPlayer.init();
+        installRoutePlacementGuard();
         installForbiddenInput();
 
         Events.on(EventType.TapEvent.class, event -> {
@@ -262,6 +268,61 @@ public class AutoRouteMod extends Mod{
 
             customMusicPlayer.addSettings(table);
         });
+    }
+
+    /**
+     * Keeps Mindustry's normal selected-block highlight visible while Auto Route
+     * is open, but temporarily suppresses vanilla placement for map gestures.
+     * This lets the build menu continue to show the yellow selection border
+     * without placing an extra conveyor underneath waypoint/upgrade taps.
+     */
+    private void installRoutePlacementGuard(){
+        routePlacementGuard = new InputProcessor(){
+            @Override
+            public boolean touchDown(int screenX, int screenY, int pointer, KeyCode button){
+                if(!canSuppressVanillaPlacement(screenX, screenY, pointer, button)) return false;
+
+                Block selected = Vars.control.input.block;
+                if(!isSupportedRouteBlock(selected)) return false;
+
+                routeBlock = selected;
+                suppressedSelectedBlock = selected;
+                routePlacementSuppressed = true;
+                Vars.control.input.block = null;
+                Vars.control.input.linePlans.clear();
+                return false;
+            }
+
+            @Override
+            public boolean touchUp(int screenX, int screenY, int pointer, KeyCode button){
+                if(pointer != 0 || !routePlacementSuppressed) return false;
+
+                Block restore = suppressedSelectedBlock;
+                routePlacementSuppressed = false;
+                suppressedSelectedBlock = null;
+
+                // Restore after Mindustry's own touch-up handler has finished so
+                // the gesture cannot create a vanilla placement plan.
+                Core.app.post(() -> {
+                    if(!active || Vars.control == null || Vars.control.input == null) return;
+                    if(Vars.control.input.block == null && isSupportedRouteBlock(restore)){
+                        Vars.control.input.block = restore;
+                        Vars.control.input.linePlans.clear();
+                    }
+                });
+                return false;
+            }
+        };
+
+        Core.input.getInputMultiplexer().addProcessor(0, routePlacementGuard);
+    }
+
+    private boolean canSuppressVanillaPlacement(int screenX, int screenY, int pointer, KeyCode button){
+        if(!active || forbidMode || Vars.state.isMenu() || pointer != 0) return false;
+        if(Vars.control == null || Vars.control.input == null) return false;
+        if(!Vars.mobile && button != KeyCode.mouseLeft) return false;
+        if(Core.scene.hasMouse(screenX, screenY)) return false;
+        return isSupportedRouteBlock(Vars.control.input.block);
     }
 
     private void installForbiddenInput(){
@@ -1047,17 +1108,14 @@ public class AutoRouteMod extends Mod{
         forbiddenAnchor = null;
         resetForbiddenStroke();
 
-        // Clear transient vanilla placement previews before snapshotting the
-        // real construction queue. A new supported block selected while this
-        // panel is open is captured by captureSelectedRouteBlock().
-        Vars.control.input.block = null;
+        // Keep Mindustry's selected block active so the normal yellow build-menu
+        // highlight remains visible. The route placement guard suppresses only
+        // map gestures, preventing duplicate vanilla placement plans.
         Vars.control.input.linePlans.clear();
         refreshQueuedPlanSnapshot();
         routePanel.toFront();
 
-        if(routeBlock == null){
-            showToast("Auto Route is open. Select a conveyor, duct, or conduit from the build menu, or enable Upgrade line and tap an existing transport.", 6f);
-        }else{
+        if(routeBlock != null){
             showToast("Tap Point A, then Point B. Add more taps for extra waypoints.", 4f);
         }
     }
@@ -1071,6 +1129,8 @@ public class AutoRouteMod extends Mod{
         selectedWaypointIndex = -1;
         forbiddenAnchor = null;
         resetForbiddenStroke();
+        routePlacementSuppressed = false;
+        suppressedSelectedBlock = null;
         clearRoute();
 
         if(restoreBlock && routeBlock != null && Vars.control != null && Vars.control.input != null){
@@ -1087,6 +1147,8 @@ public class AutoRouteMod extends Mod{
         selectedWaypointIndex = -1;
         forbiddenAnchor = null;
         resetForbiddenStroke();
+        routePlacementSuppressed = false;
+        suppressedSelectedBlock = null;
         clearRoute();
         clearForbiddenTilesInternal(false);
         routeBlock = null;
@@ -1170,10 +1232,9 @@ public class AutoRouteMod extends Mod{
         Block selected = Vars.control.input.block;
         if(!isSupportedRouteBlock(selected)) return;
 
-        // Remember the player's latest build-menu choice, then return input to
-        // map-tap mode so it does not place a vanilla drag line underneath the
-        // Auto Route panel.
-        Vars.control.input.block = null;
+        // Keep the selected block in Mindustry's normal input state so its
+        // yellow build-menu highlight remains visible. Map placement is
+        // suppressed only while the player touches the world.
         Vars.control.input.linePlans.clear();
 
         if(selected == routeBlock) return;
@@ -1403,32 +1464,45 @@ public class AutoRouteMod extends Mod{
     }
 
     private boolean isCompatibleUpgradeJunction(Tile tile){
-        if(tile == null || tile.build == null || tile.team() != Vars.player.team()) return false;
+        if(tile == null || tile.build == null || tile.team() != Vars.player.team() || upgradeSourceFamily == null){
+            return false;
+        }
+
+        Block block = tile.block();
         Block sourceReplacement = junctionReplacementFor(upgradeSourceBlock);
         Block targetReplacement = junctionReplacementFor(routeBlock);
-        return tile.block() == sourceReplacement || tile.block() == targetReplacement;
+        if(block == sourceReplacement || block == targetReplacement) return true;
+
+        // Recognize the actual junction classes as well. This matters when the
+        // source/target conveyor exposes no explicit replacement reference or
+        // when a compatible modded tier shares Mindustry's standard junction.
+        if(upgradeSourceFamily == TransportFamily.conduit){
+            return block instanceof LiquidJunction;
+        }
+        return block instanceof Junction;
     }
 
     private void addAcrossUpgradeJunction(Tile current, Tile junction, int direction,
                                           Seq<Tile> open, IntSet visited){
+        // A junction has two independent straight lanes. Entering from one side
+        // always continues to the opposite side; conveyor rotation must not be
+        // used as a rejection condition, because valid lines may feed the lane
+        // from either direction or contain mixed/upgraded tiers.
         Tile opposite = Vars.world.tile(
             junction.x + dirX[direction],
             junction.y + dirY[direction]
         );
-        if(!isUpgradeableTransportTile(opposite)) return;
-
-        int reverse = Math.floorMod(direction + 2, 4);
-        int currentRotation = current.build.rotation;
-        int oppositeRotation = opposite.build.rotation;
-
-        // A Junction carries each lane straight through. Requiring equal flow
-        // direction prevents the perpendicular crossing from being selected.
-        boolean sameForwardLane = currentRotation == direction && oppositeRotation == direction;
-        boolean sameReverseLane = currentRotation == reverse && oppositeRotation == reverse;
-        if(!sameForwardLane && !sameReverseLane) return;
+        if(opposite == null || opposite.build == null || opposite.team() != Vars.player.team()) return;
 
         markUpgradeSpecial(junction);
-        enqueueUpgradeTile(opposite, open, visited);
+
+        if(isUpgradeableTransportTile(opposite)){
+            enqueueUpgradeTile(opposite, open, visited);
+        }else if(isCompatibleUpgradeBridge(opposite)){
+            addAcrossUpgradeBridge(junction, opposite, open, visited);
+        }else if(isCompatibleUpgradeConnector(opposite)){
+            enqueueUpgradeConnector(opposite, open, visited);
+        }
     }
 
     private boolean isCompatibleUpgradeBridge(Tile tile){
@@ -1516,8 +1590,11 @@ public class AutoRouteMod extends Mod{
         }
 
         // Router, sorter, overflow/underflow gate, duct router, and compatible
-        // modded one-tile transportation nodes all use this group.
-        return block.hasItems && block.group == BlockGroup.transportation;
+        // modded one-tile transportation nodes all use this group. Some instant
+        // transfer blocks (notably Sorter) do not set hasItems, so output and
+        // instant-transfer behavior must also be accepted.
+        return block.group == BlockGroup.transportation &&
+            (block.hasItems || block.outputsItems() || block.instantTransfer);
     }
 
     private void addAcrossUpgradeConnector(Tile current, Tile connector,

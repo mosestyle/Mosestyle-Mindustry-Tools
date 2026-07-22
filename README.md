@@ -19,11 +19,13 @@ Repository: https://github.com/mosestyle/Mosestyle-Mindustry-Tools
 
 5. Restart Mindustry when prompted.
 
-## Version 0.9.1 highlights
+## Version 0.9.2 highlights
 
-### More reliable Upgrade Existing Line mode
+### Native selection and complete Upgrade Existing Line scanning
 
-The Auto Route panel can now be opened without selecting a transport block first. Upgrade mode accepts the source line and replacement block in either order:
+The Auto Route panel can be opened without selecting a transport block first. When you do select a Conveyor, Duct, or Conduit, Mindustry's normal yellow build-menu selection border remains visible while Auto Route is open. The mod suppresses ordinary placement only while you touch the map, so waypoint and upgrade taps do not create duplicate vanilla plans.
+
+Upgrade mode accepts the source line and replacement block in either order:
 
 1. Activate Auto Route at any time.
 2. Open **Options** and enable **Upgrade line**.
@@ -33,6 +35,8 @@ The Auto Route panel can now be opened without selecting a transport block first
 6. Press **Build**.
 
 Selecting an ordinary Conveyor first no longer locks the upgrade target to Conveyor. The tapped tile identifies the source family, while the latest compatible transport selected from the build menu becomes the replacement. You may tap either an older conveyor or a tile that already uses the target tier; mixed-tier lines continue through matching tiles and replace the remaining blocks. Upgrades and downgrades both work.
+
+The scanner now follows the entered lane straight through Junctions and Liquid Junctions without depending on conveyor rotation, and continues through linked bridge pairs, Routers, Sorters, gates, Duct Routers, and compatible one-tile transport connectors. Those special blocks are preserved rather than replaced.
 
 The detector now follows the connected network through linked bridge pairs, straight Junction lanes, routers, sorters, overflow/underflow gates, duct routers, and compatible one-tile transport nodes. These special blocks are preserved rather than replaced. When a router genuinely branches, all attached compatible branches are highlighted so the preview remains transparent before you press **Build**. Factories, drills, cores, and unrelated storage networks are still boundaries.
 
